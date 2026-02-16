@@ -1,0 +1,32 @@
+cff-version: 1.2.0
+message: "If you use this software, please cite it as below."
+type: software
+title: "DroneAtlas"
+abstract: "Web-based exploration platform for multi-sensor drone data, providing interactive map-based tools for visualizing, exploring, and analyzing drone-acquired datasets."
+version: 0.1.0
+date-released: '2026-02-16'
+license: MIT
+repository-code: https://github.com/DroneML/DroneAtlas
+keywords:
+  - drone
+  - multi-sensor
+  - geospatial
+  - visualization
+  - sveltekit
+  - maplibre
+  - machine-learning
+  - aerial-data
+authors:
+  - family-names: Gonzalez
+    given-names: Jesse
+    affiliation: Netherlands eScience Center
+  - family-names: Ku
+    given-names: Ou
+    affiliation: Netherlands eScience Center
+  - family-names: Lo Cascio
+    given-names: Ermanno
+    affiliation: Netherlands eScience Center
+  - name: "Netherlands eScience Center"
+    website: https://www.esciencecenter.nl/
+  - name: "University of Amsterdam, 4D Research Lab"
+    website: https://research.uva.nl/en/organisations/4d-research-lab
