@@ -108,3 +108,26 @@ export interface FilterToRasterMapping {
   syndrome: string;
   layerId: string;
 }
+
+// --- Project Location Types ---
+
+export interface ProjectLayerDef {
+  id: string;
+  name: string;
+  type: 'rgb' | 'infrared' | 'multispectral' | 'lidar' | 'atmospheric' | 'ml-prediction';
+  sourceUrl: string;
+  colormap?: string;
+  opacity?: number;
+}
+
+export interface ProjectLocation {
+  id: string;
+  name: string;
+  description: string;
+  center: [number, number]; // [lng, lat]
+  zoom: number;
+  bearing?: number;
+  pitch?: number;
+  thumbnail?: string;
+  layers: ProjectLayerDef[];
+}

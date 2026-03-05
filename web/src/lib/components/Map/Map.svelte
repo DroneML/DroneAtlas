@@ -27,9 +27,9 @@
 	import MapCore from './components/MapCore.svelte';
 	import MapControls from './components/MapControls.svelte';
 	import RasterLayerManager from './components/RasterLayerManager.svelte';
-	import MapSidebar from './components/MapSidebar.svelte';
 	import RasterLegend from './components/RasterLegend.svelte';
 	import RasterDataOverlay from './components/RasterDataOverlay.svelte';
+	import LocationsSidebar from './components/LocationsSidebar.svelte';
 	import type { RasterLayer } from '$lib/types';
 
 	// Props that can be passed to the component
@@ -414,16 +414,15 @@
 		<RasterLayerManager {map} {isStyleLoaded} bind:globalOpacity bind:this={rasterLayerManager} />
 	{/if}
 
-	<div class="absolute left-6 top-16 z-10">
-		<MapSidebar
-			class="hidden sm:block"
-			bind:globalOpacity
-			on:opacitychange={handleOpacityChange}
-			on:overlaytoggle={(e) => {
-				showRasterDataOverlay = e.detail.visible;
-			}}
-		/>
-	</div>
+	<!-- Project Locations Sidebar (includes settings) -->
+	<LocationsSidebar
+		{map}
+		bind:globalOpacity
+		on:opacitychange={handleOpacityChange}
+		on:overlaytoggle={(e) => {
+			showRasterDataOverlay = e.detail.visible;
+		}}
+	/>
 
 	{#if map && isStyleLoaded}
 		<RasterLegend visible={true} />
