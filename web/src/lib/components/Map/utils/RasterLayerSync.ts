@@ -2,6 +2,9 @@ import type { Map as MaplibreMap } from 'maplibre-gl';
 import type { RasterLayer } from '$lib/types';
 import { fetchAndSetLayerBounds } from '$lib/stores/raster.store';
 
+// Track which dataUrl has been applied to each source to avoid redundant updateImage calls
+const appliedDataUrls = new Map<string, string>();
+
 /**
  * Synchronize raster layers with the map
  * @param layersInStore Map of raster layers from the store
@@ -38,6 +41,7 @@ export function syncRasterLayers(
           if (currentMap.getLayer(layerId)) currentMap.removeLayer(layerId);
           if (currentMap.getSource(sourceId)) currentMap.removeSource(sourceId);
           currentMapLayers.delete(layerId); // Untrack
+          appliedDataUrls.delete(sourceId);
         } catch (e) {
           console.error(`Map: Error removing layer ${layerId} for visibility:`, e);
         }
@@ -61,9 +65,12 @@ export function syncRasterLayers(
             if (typeof src.setCoordinates === 'function') {
               src.setCoordinates(coords);
             }
-            // If a new dataUrl is available, refresh the image as well
+            // Only update image if the dataUrl actually changed (avoids abort errors on opacity changes)
             if (layer.dataUrl && typeof src.updateImage === 'function') {
-              src.updateImage({ url: layer.dataUrl });
+              if (appliedDataUrls.get(sourceId) !== layer.dataUrl) {
+                appliedDataUrls.set(sourceId, layer.dataUrl);
+                src.updateImage({ url: layer.dataUrl });
+              }
             }
           }
         } catch (e) {
@@ -131,6 +138,9 @@ export function syncRasterLayers(
             };
 
             currentMap?.addSource(sourceId, sourceDef);
+            if (layer.dataUrl) {
+              appliedDataUrls.set(sourceId, layer.dataUrl);
+            }
           }
 
           // Add layer if source exists and layer doesn't
@@ -156,12 +166,14 @@ export function syncRasterLayers(
             }
 
             // Optionally fit bounds only if specific bounds were used
+            // Skip for project layers - they use fly-to from the locations sidebar
+            const isProjectLayer = layerId.startsWith('project-');
             const isGlobalBounds =
               layer.bounds[0] === -180 &&
               layer.bounds[1] === -90 &&
               layer.bounds[2] === 180 &&
               layer.bounds[3] === 90;
-            if (layer.bounds && !isGlobalBounds) {
+            if (layer.bounds && !isGlobalBounds && !isProjectLayer) {
               // Convert bounds to LngLatBoundsLike format
               const boundsForFit: maplibregl.LngLatBoundsLike = [
                 [layer.bounds[0], layer.bounds[1]],
@@ -191,6 +203,7 @@ export function syncRasterLayers(
         currentMap.removeSource(sourceIdToRemove);
       }
       currentMapLayers.delete(layerIdToRemove); // Untrack
+      appliedDataUrls.delete(layerIdToRemove);
     } catch (error) {
       console.error(`Raster: Error removing layer/source ${layerIdToRemove}:`, error);
     }
