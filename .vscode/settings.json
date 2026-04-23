@@ -1,0 +1,19 @@
+{
+  "window.title": "📍 Drone Atlas - ${activeEditorShort}",
+   "workbench.editor.limit.value": 1,
+   "workbench.colorCustomizations": {                                                                                                                                                                                                                                     
+    "titleBar.activeBackground": "#00b846",
+    "titleBar.activeForeground": "#000000" ,                                                                                                                                                                                                                            
+    // "terminal.foreground": "#000000",  
+    "statusBar.background": "#543b00",                                                                                                                                                                                                                                     
+      "statusBar.foreground": "#ffffff",    
+      
+}   ,
+  "files.exclude": {
+    "**/.git": true,
+    "**/.svn": true,
+    "**/.hg": true,
+    "**/.DS_Store": true,
+    "**/Thumbs.db": true
+  }
+}
