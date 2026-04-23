@@ -3,7 +3,10 @@ import { writable, derived, get } from 'svelte/store';
 export interface Beat {
 	id: string;
 	title: string;
+	subtitle?: string;
 	caption?: string;
+	presenterNote?: string;
+	showTelemetry?: boolean;
 	start: number; // seconds
 	duration: number; // seconds
 	enter?: (ctx: TimelineContext) => void | Promise<void>;
@@ -24,6 +27,9 @@ export interface TimelineState {
 	beatIndex: number;
 	beatProgress: number;
 	totalDuration: number;
+	atSlideEnd: boolean;
+	slideIndex: number;
+	totalSlides: number;
 }
 
 export function createTimeline(beats: Beat[]) {
@@ -34,7 +40,10 @@ export function createTimeline(beats: Beat[]) {
 		now: 0,
 		beatIndex: 0,
 		beatProgress: 0,
-		totalDuration
+		totalDuration,
+		atSlideEnd: false,
+		slideIndex: 0,
+		totalSlides: beats.length
 	});
 
 	const beat = derived(state, ($s) => beats[$s.beatIndex] ?? beats[0]);
@@ -55,9 +64,11 @@ export function createTimeline(beats: Beat[]) {
 		if (!next || next.id === prevId) return;
 		if (prevId) {
 			const prev = beats.find((b) => b.id === prevId);
-			if (prev?.exit) await prev.exit({ now: get(state).now, beat: prev, beatProgress: 1, totalDuration });
+			if (prev?.exit)
+				await prev.exit({ now: get(state).now, beat: prev, beatProgress: 1, totalDuration });
 		}
-		if (next.enter) await next.enter({ now: get(state).now, beat: next, beatProgress: 0, totalDuration });
+		if (next.enter)
+			await next.enter({ now: get(state).now, beat: next, beatProgress: 0, totalDuration });
 		activeBeatId = next.id;
 	}
 
@@ -66,23 +77,41 @@ export function createTimeline(beats: Beat[]) {
 		if (!s.playing) return;
 		const dt = lastFrame ? (ts - lastFrame) / 1000 : 0;
 		lastFrame = ts;
-		const now = Math.min(s.now + dt, totalDuration);
-		const idx = findBeatIndex(now);
-		const b = beats[idx];
-		const progress = b ? Math.min(1, Math.max(0, (now - b.start) / b.duration)) : 0;
-		state.set({ ...s, now, beatIndex: idx, beatProgress: progress });
 
-		if (b) {
-			if (b.id !== activeBeatId) {
-				applyBeatTransition(activeBeatId, idx);
+		const curBeat = beats[s.beatIndex] ?? beats[0];
+		const slideEnd = curBeat.start + curBeat.duration;
+		const rawNext = s.now + dt;
+
+		// Clamp at the end of the current slide and pause.
+		if (rawNext >= slideEnd) {
+			const clamped = slideEnd;
+			const progress = 1;
+			if (curBeat.id !== activeBeatId) {
+				applyBeatTransition(activeBeatId, s.beatIndex);
 			}
-			b.tick?.({ now, beat: b, beatProgress: progress, totalDuration }, progress);
-		}
-
-		if (now >= totalDuration) {
-			state.update((v) => ({ ...v, playing: false }));
+			curBeat.tick?.(
+				{ now: clamped, beat: curBeat, beatProgress: progress, totalDuration },
+				progress
+			);
+			state.set({
+				...s,
+				now: clamped,
+				beatProgress: progress,
+				playing: false,
+				atSlideEnd: true
+			});
 			return;
 		}
+
+		const now = rawNext;
+		const progress = Math.max(0, (now - curBeat.start) / curBeat.duration);
+		state.set({ ...s, now, beatProgress: progress });
+
+		if (curBeat.id !== activeBeatId) {
+			applyBeatTransition(activeBeatId, s.beatIndex);
+		}
+		curBeat.tick?.({ now, beat: curBeat, beatProgress: progress, totalDuration }, progress);
+
 		raf = requestAnimationFrame(frame);
 	}
 
@@ -90,10 +119,8 @@ export function createTimeline(beats: Beat[]) {
 		const s = get(state);
 		if (s.playing) return;
 		lastFrame = 0;
-		state.set({ ...s, playing: true });
-		// Trigger initial beat enter if needed
-		const idx = findBeatIndex(s.now);
-		applyBeatTransition(activeBeatId, idx);
+		state.set({ ...s, playing: true, atSlideEnd: false });
+		applyBeatTransition(activeBeatId, s.beatIndex);
 		raf = requestAnimationFrame(frame);
 	}
 
@@ -107,33 +134,80 @@ export function createTimeline(beats: Beat[]) {
 		const idx = findBeatIndex(clamped);
 		const b = beats[idx];
 		const progress = b ? Math.min(1, Math.max(0, (clamped - b.start) / b.duration)) : 0;
-		state.update((v) => ({ ...v, now: clamped, beatIndex: idx, beatProgress: progress }));
+		const atEnd = progress >= 1;
+		state.update((v) => ({
+			...v,
+			now: clamped,
+			beatIndex: idx,
+			slideIndex: idx,
+			beatProgress: progress,
+			atSlideEnd: atEnd
+		}));
 		applyBeatTransition(activeBeatId, idx);
 	}
 
-	function nextBeat() {
+	function nextSlide() {
+		cancelAnimationFrame(raf);
 		const s = get(state);
-		const next = beats[s.beatIndex + 1];
-		if (next) seek(next.start);
+		const nextIdx = Math.min(beats.length - 1, s.beatIndex + 1);
+		const next = beats[nextIdx];
+		if (!next || nextIdx === s.beatIndex) return;
+		state.update((v) => ({
+			...v,
+			now: next.start,
+			beatIndex: nextIdx,
+			slideIndex: nextIdx,
+			beatProgress: 0,
+			atSlideEnd: false,
+			playing: false
+		}));
+		applyBeatTransition(activeBeatId, nextIdx);
+		play();
 	}
 
-	function prevBeat() {
+	function prevSlide() {
+		cancelAnimationFrame(raf);
 		const s = get(state);
 		const cur = beats[s.beatIndex];
-		// If we're more than 0.5s into the beat, restart it; otherwise go to previous
-		if (s.now - cur.start > 0.5) {
-			seek(cur.start);
-		} else {
-			const prev = beats[s.beatIndex - 1];
-			if (prev) seek(prev.start);
+		const intoSlide = s.now - cur.start;
+		let targetIdx = s.beatIndex;
+		if (intoSlide <= 0.5) {
+			targetIdx = Math.max(0, s.beatIndex - 1);
 		}
+		const target = beats[targetIdx];
+		state.update((v) => ({
+			...v,
+			now: target.start,
+			beatIndex: targetIdx,
+			slideIndex: targetIdx,
+			beatProgress: 0,
+			atSlideEnd: false,
+			playing: false
+		}));
+		applyBeatTransition(activeBeatId, targetIdx);
 	}
+
+	// Backwards-compat aliases (older callers may still reference these).
+	const nextBeat = nextSlide;
+	const prevBeat = prevSlide;
 
 	function destroy() {
 		cancelAnimationFrame(raf);
 	}
 
-	return { state, beat, beats, play, pause, seek, nextBeat, prevBeat, destroy };
+	return {
+		state,
+		beat,
+		beats,
+		play,
+		pause,
+		seek,
+		nextSlide,
+		prevSlide,
+		nextBeat,
+		prevBeat,
+		destroy
+	};
 }
 
 export type Timeline = ReturnType<typeof createTimeline>;

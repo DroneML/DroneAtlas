@@ -5,7 +5,9 @@
 	export let sensors: Sensor[] = [];
 </script>
 
-<div class="sensor-stack absolute right-6 top-1/2 -translate-y-1/2 z-20 flex flex-col gap-2 pointer-events-none">
+<div
+	class="sensor-stack pointer-events-none absolute right-6 top-1/2 z-20 flex -translate-y-1/2 flex-col gap-2"
+>
 	{#each sensors as s (s.id)}
 		{#if s.active}
 			<div

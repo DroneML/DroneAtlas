@@ -2,12 +2,11 @@ import * as THREE from 'three';
 import maplibregl from 'maplibre-gl';
 import type { FlightPath } from './path';
 import { samplePath } from './path';
+import { plasmaColor, type Heightfield } from './mlHeightfield';
 
 // MapLibre uses Mercator coordinates internally. We convert lng/lat/alt to a
 // scene-local space using maplibregl.MercatorCoordinate, then build a model
 // transform passed into the custom layer's render call.
-
-const MODEL_ALT_SCALE = 1; // altitude in meters → world units (mercator scaled)
 
 interface DroneLayerOptions {
 	path: FlightPath;
@@ -32,13 +31,16 @@ export class DroneLayer implements maplibregl.CustomLayerInterface {
 	private modelOrigin!: maplibregl.MercatorCoordinate;
 	private modelScale!: number;
 
+	private findingMesh: THREE.Mesh | null = null;
+	private findingCenter: [number, number] | null = null;
+
 	// Public state controlled by the timeline
 	public progress = 0; // 0..1 along the path
 	public showDrone = false;
 	public showPath = false;
 	public showParticles = false;
+	public showFinding = false;
 	public particleIntensity = 0; // 0..1
-	private lastSpawnIdx = -1;
 
 	constructor(opts: DroneLayerOptions) {
 		this.id = opts.id ?? 'drone-3d';
@@ -79,11 +81,19 @@ export class DroneLayer implements maplibregl.CustomLayerInterface {
 		this.scene.add(this.pathLine);
 
 		const drawnGeo = new THREE.BufferGeometry();
-		drawnGeo.setAttribute('position', new THREE.BufferAttribute(new Float32Array(this.path.points.length * 3), 3));
+		drawnGeo.setAttribute(
+			'position',
+			new THREE.BufferAttribute(new Float32Array(this.path.points.length * 3), 3)
+		);
 		drawnGeo.setDrawRange(0, 0);
 		this.pathDrawn = new THREE.Line(
 			drawnGeo,
-			new THREE.LineBasicMaterial({ color: 0x39d2ff, transparent: true, opacity: 0.95, linewidth: 2 })
+			new THREE.LineBasicMaterial({
+				color: 0x39d2ff,
+				transparent: true,
+				opacity: 0.95,
+				linewidth: 2
+			})
 		);
 		this.pathDrawn.visible = false;
 		this.scene.add(this.pathDrawn);
@@ -100,16 +110,19 @@ export class DroneLayer implements maplibregl.CustomLayerInterface {
 		this.renderer.autoClear = false;
 	}
 
-	render(_gl: WebGLRenderingContext | WebGL2RenderingContext, options: maplibregl.CustomRenderMethodInput) {
+	render(
+		_gl: WebGLRenderingContext | WebGL2RenderingContext,
+		options: maplibregl.CustomRenderMethodInput
+	) {
 		this.updateProgressVisuals();
 		this.tickParticles();
 
-		const m = new THREE.Matrix4().fromArray(Array.from(options.modelViewProjectionMatrix as ArrayLike<number>));
+		const m = new THREE.Matrix4().fromArray(
+			Array.from(options.modelViewProjectionMatrix as ArrayLike<number>)
+		);
 		const o = this.modelOrigin;
 		const s = this.modelScale;
-		const t = new THREE.Matrix4()
-			.makeTranslation(o.x, o.y, o.z)
-			.scale(new THREE.Vector3(s, -s, s));
+		const t = new THREE.Matrix4().makeTranslation(o.x, o.y, o.z).scale(new THREE.Vector3(s, -s, s));
 		this.camera.projectionMatrix = m.multiply(t);
 
 		this.renderer.resetState();
@@ -128,38 +141,127 @@ export class DroneLayer implements maplibregl.CustomLayerInterface {
 		this.progress = Math.max(0, Math.min(1, p));
 	}
 
-	setVisibility(opts: { drone?: boolean; path?: boolean; particles?: boolean }) {
+	setVisibility(opts: { drone?: boolean; path?: boolean; particles?: boolean; finding?: boolean }) {
 		if (opts.drone !== undefined) this.showDrone = opts.drone;
 		if (opts.path !== undefined) this.showPath = opts.path;
 		if (opts.particles !== undefined) this.showParticles = opts.particles;
+		if (opts.finding !== undefined) this.showFinding = opts.finding;
 	}
 
 	setParticleIntensity(v: number) {
 		this.particleIntensity = Math.max(0, Math.min(1, v));
 	}
 
+	setFindingMeshVisible(v: boolean) {
+		this.showFinding = v;
+		if (this.findingMesh) this.findingMesh.visible = v;
+	}
+
 	getDronePosition() {
 		return samplePath(this.path, this.progress);
+	}
+
+	getFindingCenter(): [number, number] | null {
+		return this.findingCenter;
+	}
+
+	// Build (or rebuild) the 3D heightfield mesh from a pre-loaded grid.
+	setFindingHeightfield(hf: Heightfield, opts: { heightMeters?: number } = {}) {
+		// Remove the old mesh if we're rebuilding.
+		if (this.findingMesh) {
+			this.scene.remove(this.findingMesh);
+			this.findingMesh.geometry.dispose();
+			(this.findingMesh.material as THREE.Material).dispose();
+			this.findingMesh = null;
+		}
+
+		const [minLng, minLat, maxLng, maxLat] = hf.bounds;
+		const cLng = (minLng + maxLng) / 2;
+		const cLat = (minLat + maxLat) / 2;
+		this.findingCenter = [cLng, cLat];
+
+		// Width/height of the mesh in meters. meterInMercatorCoordinateUnits
+		// at the raster centre gives the conversion factor.
+		const originAtBounds = maplibregl.MercatorCoordinate.fromLngLat({ lng: cLng, lat: cLat }, 0);
+		const mScale = originAtBounds.meterInMercatorCoordinateUnits();
+
+		const widthMeters =
+			((maxLng - minLng) * Math.PI * 6378137 * Math.cos((cLat * Math.PI) / 180)) / 180;
+		const heightMeters = ((maxLat - minLat) * Math.PI * 6378137) / 180;
+		const displacement = opts.heightMeters ?? 40;
+
+		const geo = new THREE.PlaneGeometry(widthMeters, heightMeters, hf.width - 1, hf.height - 1);
+
+		const posAttr = geo.getAttribute('position') as THREE.BufferAttribute;
+		const colors = new Float32Array(posAttr.count * 3);
+		// PlaneGeometry indexes row 0 at top of the plane (+y). The raster's
+		// row 0 is its top (max latitude) too, so direct mapping is correct.
+		for (let i = 0; i < posAttr.count; i++) {
+			const v = hf.values[i] ?? 0;
+			// Displace along z (plane's normal axis after we rotate it flat).
+			posAttr.setZ(i, v * displacement);
+			const c = plasmaColor(v);
+			colors[i * 3] = c[0];
+			colors[i * 3 + 1] = c[1];
+			colors[i * 3 + 2] = c[2];
+		}
+		posAttr.needsUpdate = true;
+		geo.setAttribute('color', new THREE.BufferAttribute(colors, 3));
+		geo.computeVertexNormals();
+
+		const mat = new THREE.MeshStandardMaterial({
+			vertexColors: true,
+			metalness: 0.05,
+			roughness: 0.75,
+			emissive: new THREE.Color(0x2a0050),
+			emissiveIntensity: 0.35,
+			transparent: true,
+			opacity: 0.92,
+			side: THREE.DoubleSide
+		});
+
+		const mesh = new THREE.Mesh(geo, mat);
+		// PlaneGeometry is in XY plane with normal +Z. We want it flat on the
+		// map (normal pointing up in world space), so rotate -90° around X.
+		mesh.rotation.x = -Math.PI / 2;
+
+		// Position relative to the scene's model origin.
+		const meshOrigin = originAtBounds;
+		mesh.position.set(
+			(meshOrigin.x - this.modelOrigin.x) / this.modelScale,
+			-(meshOrigin.y - this.modelOrigin.y) / this.modelScale,
+			(meshOrigin.z - this.modelOrigin.z) / this.modelScale
+		);
+		// Mesh dimensions were constructed in meters; the scene scale is also
+		// meters (modelScale converts meters → mercator). So no extra scale.
+		// But we need the mesh's own scale to match modelScale ratio:
+		const s = mScale / this.modelScale;
+		mesh.scale.setScalar(s);
+		mesh.visible = this.showFinding;
+
+		this.scene.add(mesh);
+		this.findingMesh = mesh;
 	}
 
 	// --- Internals ---------------------------------------------------------
 
 	private buildDrone(): THREE.Group {
 		const g = new THREE.Group();
-		// Body (carbon black)
 		const body = new THREE.Mesh(
 			new THREE.BoxGeometry(40, 8, 40),
 			new THREE.MeshStandardMaterial({ color: 0x111418, metalness: 0.6, roughness: 0.4 })
 		);
 		g.add(body);
-		// Arms in X-shape
-		const armMat = new THREE.MeshStandardMaterial({ color: 0x222831, metalness: 0.5, roughness: 0.5 });
+		const armMat = new THREE.MeshStandardMaterial({
+			color: 0x222831,
+			metalness: 0.5,
+			roughness: 0.5
+		});
 		for (const angle of [Math.PI / 4, -Math.PI / 4]) {
 			const arm = new THREE.Mesh(new THREE.BoxGeometry(90, 4, 4), armMat);
 			arm.rotation.y = angle;
 			g.add(arm);
 		}
-		// Rotors with a faint glow ring
 		for (const [x, z] of [
 			[32, 32],
 			[-32, 32],
@@ -174,16 +276,25 @@ export class DroneLayer implements maplibregl.CustomLayerInterface {
 			g.add(motor);
 			const rotor = new THREE.Mesh(
 				new THREE.RingGeometry(10, 14, 24),
-				new THREE.MeshBasicMaterial({ color: 0x39d2ff, transparent: true, opacity: 0.5, side: THREE.DoubleSide })
+				new THREE.MeshBasicMaterial({
+					color: 0x39d2ff,
+					transparent: true,
+					opacity: 0.5,
+					side: THREE.DoubleSide
+				})
 			);
 			rotor.rotation.x = -Math.PI / 2;
 			rotor.position.set(x, 8, z);
 			g.add(rotor);
 		}
-		// Sensor pod underneath
 		const pod = new THREE.Mesh(
 			new THREE.SphereGeometry(6, 16, 16),
-			new THREE.MeshStandardMaterial({ color: 0x39d2ff, emissive: 0x113344, metalness: 0.8, roughness: 0.2 })
+			new THREE.MeshStandardMaterial({
+				color: 0x39d2ff,
+				emissive: 0x113344,
+				metalness: 0.8,
+				roughness: 0.2
+			})
 		);
 		pod.position.set(0, -8, 0);
 		g.add(pod);
@@ -199,7 +310,7 @@ export class DroneLayer implements maplibregl.CustomLayerInterface {
 		const age = new Float32Array(N);
 		const maxAge = new Float32Array(N);
 		for (let i = 0; i < N; i++) {
-			age[i] = Infinity; // dead until spawned
+			age[i] = Infinity;
 			maxAge[i] = 4 + Math.random() * 4;
 		}
 		const geo = new THREE.BufferGeometry();
@@ -233,6 +344,7 @@ export class DroneLayer implements maplibregl.CustomLayerInterface {
 		this.drone.visible = this.showDrone;
 		this.pathLine.visible = this.showPath;
 		this.pathDrawn.visible = this.showPath;
+		if (this.findingMesh) this.findingMesh.visible = this.showFinding;
 
 		if (this.showDrone) {
 			const sample = samplePath(this.path, this.progress);
@@ -246,14 +358,14 @@ export class DroneLayer implements maplibregl.CustomLayerInterface {
 				(m.z - this.modelOrigin.z) / this.modelScale
 			);
 			this.drone.rotation.set(0, (-sample.bearing * Math.PI) / 180, 0);
-			// Subtle bobbing
 			this.drone.position.y += Math.sin(performance.now() * 0.005) * 1.5;
 		}
 
 		if (this.showPath) {
 			const total = this.path.points.length;
 			const drawn = Math.max(2, Math.floor(this.progress * total));
-			const fullPos = (this.pathLine.geometry.attributes.position as THREE.BufferAttribute).array as Float32Array;
+			const fullPos = (this.pathLine.geometry.attributes.position as THREE.BufferAttribute)
+				.array as Float32Array;
 			const drawnAttr = this.pathDrawn.geometry.attributes.position as THREE.BufferAttribute;
 			const drawnArr = drawnAttr.array as Float32Array;
 			drawnArr.set(fullPos.subarray(0, drawn * 3));
@@ -272,7 +384,6 @@ export class DroneLayer implements maplibregl.CustomLayerInterface {
 		const colArr = colors.array as Float32Array;
 		const { age, maxAge } = this.particleData;
 
-		// Spawn near the drawn portion of the path
 		const drawnIdx = Math.floor(this.progress * this.path.points.length);
 		const spawnCount = Math.floor(8 * this.particleIntensity);
 		for (let s = 0; s < spawnCount; s++) {
@@ -285,9 +396,9 @@ export class DroneLayer implements maplibregl.CustomLayerInterface {
 				p.alt + Math.random() * 30
 			);
 			posArr[i * 3 + 0] = (m.x - this.modelOrigin.x) / this.modelScale + (Math.random() - 0.5) * 30;
-			posArr[i * 3 + 1] = -(m.y - this.modelOrigin.y) / this.modelScale + (Math.random() - 0.5) * 30;
+			posArr[i * 3 + 1] =
+				-(m.y - this.modelOrigin.y) / this.modelScale + (Math.random() - 0.5) * 30;
 			posArr[i * 3 + 2] = (m.z - this.modelOrigin.z) / this.modelScale;
-			// Color by simulated PM2.5: green → yellow → red
 			const pm = Math.random();
 			colArr[i * 3 + 0] = pm < 0.5 ? pm * 2 : 1;
 			colArr[i * 3 + 1] = pm < 0.5 ? 1 : 1 - (pm - 0.5) * 2;
@@ -295,22 +406,19 @@ export class DroneLayer implements maplibregl.CustomLayerInterface {
 			age[i] = 0;
 		}
 
-		// Age + drift
 		for (let i = 0; i < age.length; i++) {
 			if (age[i] >= maxAge[i]) continue;
 			age[i] += dt;
 			posArr[i * 3 + 0] += Math.sin(performance.now() * 0.001 + i) * 0.05;
 			posArr[i * 3 + 1] += Math.cos(performance.now() * 0.001 + i) * 0.05;
-			posArr[i * 3 + 2] += 0.3; // rise
+			posArr[i * 3 + 2] += 0.3;
 			if (age[i] >= maxAge[i]) {
-				// move offscreen
 				posArr[i * 3 + 0] = posArr[i * 3 + 1] = posArr[i * 3 + 2] = -1e6;
 			}
 		}
 
 		positions.needsUpdate = true;
 		colors.needsUpdate = true;
-		this.lastSpawnIdx = drawnIdx;
 	}
 
 	private findDeadParticle(): number {

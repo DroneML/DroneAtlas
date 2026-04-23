@@ -5,7 +5,7 @@
 	export let detections: Detection[] = [];
 </script>
 
-<div class="absolute left-6 top-1/2 -translate-y-1/2 z-20 flex flex-col gap-2 pointer-events-none">
+<div class="pointer-events-none absolute left-6 top-1/2 z-20 flex -translate-y-1/2 flex-col gap-2">
 	{#each detections as d (d.id)}
 		{#if d.visible}
 			<div
@@ -14,7 +14,7 @@
 				class="card"
 				style="border-color: {d.color}; box-shadow: 0 0 16px {d.color}55"
 			>
-				<div class="flex items-center gap-2 mb-1">
+				<div class="mb-1 flex items-center gap-2">
 					<span class="dot" style="background: {d.color}"></span>
 					<span class="label">{d.label}</span>
 				</div>

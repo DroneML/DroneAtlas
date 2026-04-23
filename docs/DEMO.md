@@ -1,154 +1,136 @@
-# DroneAtlas — Cinematic Demo
+# DroneAtlas — Presentation Deck
 
-A 5-minute scripted presentation that showcases DroneAtlas as a multi-sensor
-drone data exploration platform. Lives at `/demo` in the web app.
+A pausable, slide-based presentation that showcases DroneAtlas as a multi-sensor
+drone data exploration platform. Lives at `/demo` in the web app and is
+designed for live presenting — each slide plays its intro animation and
+**pauses at the end** until the presenter advances.
 
 ---
 
 ## Goals
 
 ### Primary
-- **Wow in 5 minutes.** The audience should leave remembering a visual, not a
-  feature list. Every beat earns its seconds.
-- **Tell a story, not a tour.** A single drone flight that starts with a
-  question and ends with more answers than were asked for.
-- **Make the platform feel inevitable.** Multi-sensor capture + ML inference +
-  atmospheric side-effects should read as one coherent system, not four
-  bolted-together features.
+- **Tell a story about this platform.** Multi-sensor drone data → ML inference
+  → explorable maps, anchored in a real site (Veldhoven archaeology).
+- **Be presenter-friendly.** Pause at every slide, presenter notes on demand,
+  visible slide indicator, keyboard and click-to-advance.
+- **Be reliably spectacular.** Deterministic animations, preloaded data,
+  graceful fallbacks — no live-demo failures.
 
 ### Secondary
 - **Demonstrate technical depth without lecturing.** 3D drone, animated flight
-  path, layered rasters, GPU particles — all signal "this is a serious
-  platform" without a single bullet point on screen.
-- **Be reliably spectacular.** A scripted timeline means no live-demo
-  failures. Every beat is deterministic, skippable, and restartable.
-- **Seed follow-up conversations.** After the demo, people should ask: "Can I
-  see the detection step?" "What sensors does it support?" "How does the
-  particulate mapping work?"
+  path, real ML-prediction raster rendered as a 3D heightfield, screen-pinned
+  sensor stack previews — all signal "this is a serious platform" without
+  bullet lists.
+- **Seed follow-up conversations.** After the demo, people should ask: "How
+  does the ML layer work?" "Can I add my own site?" "What sensors do you
+  support?"
 
 ---
 
-## Narrative arc
+## Narrative arc (9 slides)
 
-A single drone flight as the spine of the story. Six beats, each with a
-specific emotional job.
+Each slide pauses at the end. `Duration` is the intro animation length, not a
+runtime cap.
 
-| # | Beat | Time | Job |
-|---|------|------|-----|
-| 1 | Cold open | 0:00–0:30 | Pose the question. Set the stakes. |
-| 2 | Drone arrival | 0:30–1:15 | Make the invisible tangible — the flight begins. |
-| 3 | Sensor reveal | 1:15–2:30 | "The map becomes a stack." Signature visual. |
-| 4 | ML inference | 2:30–3:30 | Machines see what we don't. |
-| 5 | Atmospheric capture | 3:30–4:15 | Side-effect becomes discovery. |
-| 6 | Finale | 4:15–5:00 | One flight. Many discoveries. |
+| # | Slide | Duration | Visual |
+|---|-------|----------|--------|
+| 1 | **Title** | 8 s | Centre card: *"DroneAtlas — seeing what the ground hides."* Slow cinematic zoom. |
+| 2 | **The Problem** | 20 s | Centre card: *"Terabytes of sensor data. An explorable insight is the hard part."* |
+| 3 | **The Site** | 25 s | Pin drop from globe to Veldhoven farmland. |
+| 4 | **The Flight** | 35 s | 3D drone runs the lawn-mower path over the survey box; live telemetry. |
+| 5 | **The Stack** | 40 s | Four stylised sensor layers fade in over the survey box (RGB · Thermal · LiDAR · ML). |
+| 6 | **Human vs. Machine** | 35 s | Split-reveal: RGB on the left, ML confidence heatmap wipes in from the right; detection cards slide in. |
+| 7 | **The Finding** | 40 s | Camera orbits 360° around the real `ml_prediction.tif` rendered as a 3D plasma heightfield; drone hovers above. |
+| 8 | **One Platform** | 25 s | Fly-hops Veldhoven → Ostia Antica → Veluwe. |
+| 9 | **Close** | 12 s | End card with stats and tagline. |
 
-### 1 · Cold open (0:00–0:30)
-- Hook: *"What if a single flight could map the unseen?"*
-- Black frame with kicker line, then hero question fades in.
-- Map slowly zooms from continent scale toward the target region while the
-  pitch and bearing ease in. No data yet — just promise.
-
-### 2 · Drone arrival (0:30–1:15)
-- HUD fades in (telemetry, scrubber, beat title).
-- 3D drone becomes visible; glowing flight path begins to draw as it flies.
-- Camera tracks the drone with a 60° pitch and a slow bearing sweep. Altitude,
-  speed, area-covered counters tick up in real time.
-
-### 3 · Sensor reveal (1:15–2:30)
-- The **signature shot**. Sensor chips pop in from the right one at a time:
-  RGB → Thermal → Multispectral → LiDAR.
-- Each activation corresponds to a sweep-reveal of that sensor's raster layer
-  over the mapped area (radial mask originating from the drone).
-- Camera continues to orbit; the layered "stack" becomes visible.
-
-### 4 · ML inference (2:30–3:30)
-- Detection cards slide in from the left with confidence bars:
-  vegetation stress → built structure → thermal anomaly.
-- Low-poly 3D markers pop up over corresponding regions with pulsing
-  highlights. Connector lines link each marker to its card.
-- Detection counter on the HUD surges.
-
-### 5 · Atmospheric capture (3:30–4:15)
-- GPU air-particle system activates: ~4,000 particles drift from the drawn
-  flight path, color-coded green→yellow→red by simulated PM2.5.
-- Camera pulls up slightly, revealing the particles as a volumetric layer
-  above the ground.
-- Caption: *"A side-effect becomes a discovery."*
-
-### 6 · Finale (4:15–5:00)
-- Camera pulls back to a top-down view; pitch and bearing ease to zero.
-- All layers, detections, and particles visible at once.
-- End card overlays with the mission stats: 12.4 km² mapped, 847 detections,
-  4 sensors, 18:42 flight time.
-- Closing line: *"One flight. Many discoveries."*
+All slide copy lives in `web/src/lib/demo/beats.ts`. Each slide has a
+`presenterNote` string shown only to the presenter (via `N`).
 
 ---
 
 ## Showcase features
 
-### On-screen during the demo
-- **3D drone** — low-poly but believable; X-frame body, four glowing rotors,
-  sensor pod underneath. Bobs subtly, rotates to follow heading.
+### On-screen
+- **3D drone** — low-poly X-frame body with glowing rotors and sensor pod.
 - **Animated flight path** — dimmed full-path trace + bright drawn-so-far
-  segment in DroneAtlas cyan. Reveals progressively as the drone flies.
-- **HUD telemetry** — altitude, speed, area covered (km²), detections count,
-  beat title, captions, scrubber with elapsed/total time.
-- **Sensor chips** — one per modality, glow-border in the sensor's accent
-  color, appear with a staggered fly-in.
-- **Detection cards** — class label, color dot, confidence bar, connector to
-  the in-scene marker.
-- **Air particles** — GPU points, additive blending, color ramp by simulated
-  PM2.5. Age out over 4–8 seconds so the scene never saturates.
-- **End card** — stats grid with gradient numerals, final tagline, subtle
-  credits line.
+  segment in DroneAtlas cyan.
+- **Screen-pinned sensor stack** (slide 5) — stylised but visually credible
+  RGB / thermal / LiDAR / ML previews drawn over the Veldhoven survey bounds.
+- **Split-reveal** (slide 6) — same box, RGB on the left, ML heatmap on the
+  right with glowing anomaly blobs.
+- **3D ML-prediction heightfield** (slide 7) — the real `ml_prediction.tif`
+  downsampled and extruded (`z = confidence × 40m`) with a plasma vertex-colour
+  ramp. Camera does a full 360° orbit around it with the drone hovering above.
+  If the raster fails to load, a procedural fallback mesh keeps the slide from
+  looking broken.
+- **HUD** — brand, slide title, subtitle, caption, telemetry block (toggled
+  per slide via `showTelemetry`).
+- **Slide nav** — bottom-centre pill: prev / counter / dots / title / next.
+  Dots are clickable to jump to any slide.
+- **Presenter notes** — toggleable yellow panel (bottom-left) showing the
+  current slide's `presenterNote`.
+- **Slide-end hint** — small animated chip in the bottom-right when a slide
+  has finished its intro animation and is waiting for the presenter to
+  advance.
 
 ### Under the hood
 - **SvelteKit route** `/demo`, SSR disabled, full-screen MapLibre with
-  interaction locked during the cinematic.
+  interaction locked.
 - **Timeline driver** (`$lib/demo/timeline.ts`) — beats defined as
-  `{ start, duration, enter, tick, exit }`, a single `requestAnimationFrame`
-  loop, play/pause/seek/next/prev.
+  `{ start, duration, enter, tick, exit }`. Each `frame()` clamps progress
+  at the end of the current slide and **pauses**, setting `atSlideEnd = true`.
+  `nextSlide()` seeks to the next beat's start and auto-plays its intro.
 - **Three.js custom MapLibre layer** (`$lib/demo/DroneLayer.ts`) — shares the
   map's WebGL context, uses `MercatorCoordinate` for world-space placement of
-  drone, path, and particles.
-- **Synthetic flight path** (`$lib/demo/path.ts`) — lawn-mower survey pattern
-  over a region near Amsterdam with gentle altitude variation, sampled with
-  interpolation + bearing for camera follow.
-- **Reactive overlays** — plain Svelte components driven by beat callbacks;
-  no stores shared with the main app, no risk of regression.
+  drone, path, particles, and the heightfield mesh.
+- **ML heightfield loader** (`$lib/demo/mlHeightfield.ts`) — calls the shared
+  `geoTiffProcessor.loadGeoTIFF` utility, downsamples to a 128×128 grid, and
+  returns values + WGS84 bounds. `syntheticHeightfield()` produces a procedural
+  fallback with three gaussian "foundation" peaks.
+- **Synthetic flight path** (`$lib/demo/path.ts`) — parameterised lawn-mower
+  pattern centred on Veldhoven (default 4 passes × 0.3 km).
+- **Reactive overlays** — plain Svelte components driven by `currentBeat.id`
+  and a handful of UI flags; no shared stores with the main app, no risk of
+  regression.
 
 ---
 
 ## Controls
 
-- `SPACE` — play / pause
-- `→` — skip to next beat
-- `←` — restart current beat, or jump to previous beat if near its start
-- `R` — reset the whole demo
+| Key | Action |
+|-----|--------|
+| `→` / `PageDown` | Next slide (plays its intro animation). Starts the deck on the first press if not yet playing. |
+| `SPACE` | Mid-slide: pause / resume the intro animation. At slide end: advance to next. |
+| `←` / `PageUp` | Previous slide. If you're more than 0.5 s into the current slide, restart it instead. |
+| `Home` / `R` | Reset everything and jump back to slide 1. |
+| `N` | Toggle presenter notes panel. |
+| Click anywhere (outside buttons) | Advance to next slide when current slide has ended. |
 
 ---
 
 ## Design tokens
 
-- **Accent cyan** `#39d2ff` — brand, path glow, primary highlights
-- **Alert red** `#ff6b6b` — thermal, anomalies
-- **Violet** `#7c3aff`, `#9d4edd` — multispectral, scrubber gradient
-- **Signal green** `#06ffa5` — LiDAR, vegetation
-- **Background** near-black `#050810` to let glows read
+- **Accent cyan** `#39d2ff` — brand, path glow, primary UI accents.
+- **Alert red** `#ff6b6b` — thermal, warning detections.
+- **Signal green** `#06ffa5` — LiDAR, vegetation.
+- **ML orange** `#ffb84d` — ML layer chip, foundation detection card.
+- **Presenter notes yellow** `#ffc938` / `#ffe8a3` — presenter-only panel.
+- **Background** near-black `#050810` to let glows read.
 - Typography: Inter (system fallback), uppercase kickers with 0.2–0.4em
-  letter-spacing for sci-fi telemetry feel
+  letter-spacing for telemetry feel.
 
 ---
 
 ## Non-goals
 
-- **Not a real ML pipeline.** Detections, confidences, sensor names, and
-  particulate readings are illustrative. The demo sells the *experience*, not
-  the numbers.
-- **Not interactive.** The map is non-interactive during playback by design —
-  a cinematic, not a sandbox. The real app at `/` is where users explore.
-- **Not a substitute for the full product tour.** This is the 5-minute hook;
-  the follow-up conversation is where the real platform gets demoed.
+- **Not a real-time pipeline.** The flight path, particles (not used now),
+  detection confidences, and sensor chips are illustrative.
+- **Not interactive beyond slide nav.** The map itself is locked during
+  playback; the full product lives at `/`.
+- **Not a substitute for a product tour.** The deck is the 5-ish-minute hook;
+  the real demo happens in the app after the Q&A.
 
 ---
 
@@ -156,21 +138,22 @@ specific emotional job.
 
 | Risk | Mitigation |
 |------|------------|
-| Live-demo glitch mid-show | Deterministic timeline + `R` restart + `←/→` beat skip |
-| Slow machine / dropped frames | GPU particles capped at 4k; all raster assets preload before play |
-| Copy feels cheesy | Copy is in `$lib/demo/beats.ts` — iterate with stakeholders |
-| Looks like vaporware | Tie every visual beat back to a real platform capability in the follow-up Q&A |
+| Live-demo glitch mid-show | Every slide is pause-at-end; `R` / `Home` reset; `← →` skip. |
+| `ml_prediction.tif` fails to load | `loadMlHeightfield` falls back to `syntheticHeightfield()` and the slide continues. |
+| Slow machine / dropped frames | Heightfield downsampled to 128×128 before upload; COGs not loaded onto the map during the deck. |
+| Copy feels cheesy | All slide copy + presenter notes live in `beats.ts` — iterate with stakeholders. |
 
 ---
 
-## Extending the demo
+## Extending the deck
 
-- **Swap in real paths.** `generateFlightPath()` can be replaced with a loader
-  that reads a GeoJSON of an actual mission.
-- **Swap in real rasters.** The sensor beat currently shows chips only;
-  wiring actual COG layers in with a sweep-reveal mask is the next polish
-  pass.
-- **Add a soundtrack.** A quiet synth bed + UI ticks on beat transitions
-  would add ~20% to the "wow" factor. Keep optional — some venues mute.
-- **Record a fallback video.** Screen-capture the full 5 minutes once tuned,
-  so the presenter has a zero-risk backup at high-stakes events.
+- **Change the site.** `generateFlightPath({ center, passLengthKm, passes })`
+  takes a custom anchor; the heightfield loader accepts any raster URL via the
+  `projectLocations` store.
+- **Add/remove a slide.** Push a new `Beat` into `buildBeats()` with
+  `start: at(duration).start` (the `at()` helper handles offsets). Add a dot
+  for it automatically via `SlideNav`.
+- **Add a soundtrack.** A quiet synth bed + UI ticks on slide transitions
+  would add to the feel — keep optional since some venues are muted.
+- **Record a fallback video.** Screen-capture a full run once tuned so the
+  presenter always has a zero-risk backup.

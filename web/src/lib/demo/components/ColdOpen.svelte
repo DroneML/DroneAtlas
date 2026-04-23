@@ -1,18 +1,29 @@
 <script lang="ts">
 	import { fade } from 'svelte/transition';
-	export let visible: boolean = true;
-	export let progress: number = 0; // 0..1 within beat, used to fade out
+	export let visible: boolean = false;
+	export let kicker: string = '';
+	export let title: string = '';
+	export let subtitle: string = '';
+	export let variant: 'hero' | 'problem' = 'hero';
 </script>
 
 {#if visible}
-	<div class="cold-open absolute inset-0 z-30 flex items-center justify-center pointer-events-none"
-		style="opacity: {1 - Math.max(0, progress - 0.7) / 0.3}">
-		<div class="bg"></div>
-		<div class="text-center px-8" in:fade={{ duration: 1200 }}>
-			<div class="kicker">DRONEATLAS · NETHERLANDS eSCIENCE CENTER</div>
-			<h1 class="hero">
-				What if a single flight<br />could map the unseen?
+	<div
+		class="cold-open pointer-events-none absolute inset-0 z-30 flex items-center justify-center"
+		in:fade={{ duration: 450 }}
+		out:fade={{ duration: 250 }}
+	>
+		<div class="bg {variant}"></div>
+		<div class="px-8 text-center" in:fade={{ duration: 800 }}>
+			{#if kicker}
+				<div class="kicker">{kicker}</div>
+			{/if}
+			<h1 class="hero {variant}">
+				{@html title.replace(/\n/g, '<br />')}
 			</h1>
+			{#if subtitle}
+				<div class="subtitle">{subtitle}</div>
+			{/if}
 			<div class="scan-line"></div>
 		</div>
 	</div>
@@ -26,7 +37,20 @@
 	.bg {
 		position: absolute;
 		inset: 0;
-		background: radial-gradient(ellipse at center, rgba(8, 18, 30, 0.85) 0%, rgba(0, 0, 0, 0.98) 70%);
+	}
+	.bg.hero {
+		background: radial-gradient(
+			ellipse at center,
+			rgba(8, 18, 30, 0.9) 0%,
+			rgba(0, 0, 0, 0.99) 70%
+		);
+	}
+	.bg.problem {
+		background: radial-gradient(
+			ellipse at center,
+			rgba(30, 8, 40, 0.85) 0%,
+			rgba(0, 0, 0, 0.96) 70%
+		);
 	}
 	.kicker {
 		font-size: 11px;
@@ -36,11 +60,24 @@
 		position: relative;
 	}
 	.hero {
-		font-size: clamp(32px, 5vw, 56px);
+		font-size: clamp(40px, 6vw, 72px);
 		font-weight: 300;
-		line-height: 1.15;
+		line-height: 1.1;
 		letter-spacing: -0.01em;
 		position: relative;
+	}
+	.hero.problem {
+		font-size: clamp(28px, 4.5vw, 48px);
+		font-weight: 400;
+	}
+	.subtitle {
+		margin-top: 20px;
+		font-size: clamp(14px, 1.6vw, 18px);
+		letter-spacing: 0.1em;
+		opacity: 0.75;
+		max-width: 680px;
+		margin-left: auto;
+		margin-right: auto;
 	}
 	.scan-line {
 		margin-top: 32px;

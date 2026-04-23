@@ -1,4 +1,4 @@
-// Synthetic drone flight path over a region in the Netherlands.
+// Synthetic drone flight path.
 // Generates a realistic lawn-mower survey pattern with gentle altitude variation.
 
 export interface PathPoint {
@@ -14,19 +14,37 @@ export interface FlightPath {
 	totalDistanceKm: number;
 }
 
-const CENTER: [number, number] = [4.9041, 52.3676]; // Amsterdam-ish
+export interface FlightPathOptions {
+	center?: [number, number];
+	passes?: number;
+	passLengthKm?: number; // end-to-end length of each pass
+	passSpacingM?: number; // lateral spacing between passes in meters
+	baseAlt?: number;
+}
 
-export function generateFlightPath(): FlightPath {
-	const points: PathPoint[] = [];
-	const passes = 8;
-	const passLengthDeg = 0.012; // ~1.3 km
-	const passSpacingDeg = 0.0015; // ~150 m
-	const baseAlt = 80;
+const VELDHOVEN: [number, number] = [5.4053, 51.4203];
+
+// 1° longitude ≈ this many km at a given latitude.
+function kmPerDegLng(lat: number): number {
+	return 111.32 * Math.cos((lat * Math.PI) / 180);
+}
+
+export function generateFlightPath(opts: FlightPathOptions = {}): FlightPath {
+	const center = opts.center ?? VELDHOVEN;
+	const passes = opts.passes ?? 4;
+	const passLengthKm = opts.passLengthKm ?? 0.3;
+	const passSpacingM = opts.passSpacingM ?? 45;
+	const baseAlt = opts.baseAlt ?? 80;
 	const samplesPerPass = 60;
 
-	const startLng = CENTER[0] - passLengthDeg / 2;
-	const startLat = CENTER[1] - (passes * passSpacingDeg) / 2;
+	const kmLng = kmPerDegLng(center[1]);
+	const passLengthDeg = passLengthKm / kmLng;
+	const passSpacingDeg = passSpacingM / 111_320; // meters → degrees lat
 
+	const startLng = center[0] - passLengthDeg / 2;
+	const startLat = center[1] - (passes * passSpacingDeg) / 2;
+
+	const points: PathPoint[] = [];
 	for (let p = 0; p < passes; p++) {
 		const lat = startLat + p * passSpacingDeg;
 		const reverse = p % 2 === 1;
@@ -52,7 +70,7 @@ export function generateFlightPath(): FlightPath {
 		totalDistanceKm += haversineKm(points[i - 1], points[i]);
 	}
 
-	return { points, bbox, center: CENTER, totalDistanceKm };
+	return { points, bbox, center, totalDistanceKm };
 }
 
 function haversineKm(a: PathPoint, b: PathPoint): number {
