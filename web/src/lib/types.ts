@@ -1,10 +1,5 @@
 import type { Feature, FeatureCollection, Point } from 'geojson';
 
-export enum Role {
-  USER = 'user',
-  ADMIN = 'admin'
-}
-
 // Define the CSV row interface for the new data structure
 export interface PointDataRow {
   EST_ID: string;

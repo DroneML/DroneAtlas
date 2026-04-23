@@ -8,6 +8,7 @@
 	import { buildBeats, type SceneRefs } from '$lib/demo/beats';
 	import { loadMlHeightfield, syntheticHeightfield } from '$lib/demo/mlHeightfield';
 	import { projectLocations } from '$lib/stores/projects.store';
+	import { base } from '$app/paths';
 	import { get } from 'svelte/store';
 	import HUD from '$lib/demo/components/HUD.svelte';
 	import ColdOpen from '$lib/demo/components/ColdOpen.svelte';
@@ -356,7 +357,7 @@
 		const locations = get(projectLocations);
 		const veldhoven = locations.find((l) => l.id === 'veldhoven');
 		const mlLayer = veldhoven?.layers.find((l) => l.type === 'ml-prediction');
-		const url = mlLayer?.sourceUrl ?? '/mock/veldhoven/ml_prediction.tif';
+		const url = mlLayer?.sourceUrl ?? `${base}/mock/veldhoven/ml_prediction.tif`;
 		try {
 			const hf = await loadMlHeightfield(url, 128);
 			droneLayer.setFindingHeightfield(hf, { heightMeters: 40 });

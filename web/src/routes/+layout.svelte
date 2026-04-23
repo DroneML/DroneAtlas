@@ -2,7 +2,6 @@
 	import '$lib/assets/css/app.css';
 	import '$lib/assets/css/code-highlighted-prisma.css';
 	import Header from '$components/ui/Header.svelte';
-	// import Analytics from '$components/ui/Analytics.svelte';
 	import SideMenu from '$components/ui/SideMenu.svelte';
 	import GlobalToast from '$components/ui/GlobalToast.svelte';
 	import { page } from '$app/stores';
@@ -18,7 +17,6 @@
 	let isEmbedded = $derived(browser && $page.url.searchParams.get('embed') === 'true');
 </script>
 
-<!-- <Analytics /> -->
 <GlobalToast />
 
 <svelte:head>

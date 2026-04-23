@@ -1,11 +1,12 @@
 import { writable, derived, get } from 'svelte/store';
+import { base } from '$app/paths';
 import type { ProjectLocation, ProjectLayerDef } from '$lib/types';
 import { rasterLayers } from '$lib/stores/raster.store';
 import type { RasterLayer } from '$lib/types';
 
 // Mock data served from static/mock/ during development.
 // Replace with R2 URLs (e.g. https://pub-xxx.r2.dev/cogs/projects/...) for production.
-const mockBase = '/mock';
+const mockBase = `${base}/mock`;
 
 // Sample project locations for demonstration
 const sampleLocations: ProjectLocation[] = [

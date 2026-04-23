@@ -100,8 +100,6 @@ Choose from multiple professionally designed map styles:
 | **UI/Styling** | TailwindCSS + DaisyUI |
 | **Mapping** | MapLibre GL |
 | **Package Manager** | Bun |
-| **Database** | PostgreSQL (via pg) |
-| **Authentication** | Auth.js (custom system) |
 | **Data Processing** | PapaParse, GeoTIFF.js |
 | **State Management** | Svelte Stores (Runes) |
 | **Cloud Storage** | Cloudflare R2 |
@@ -110,7 +108,6 @@ Choose from multiple professionally designed map styles:
 
 - **Node.js**: v20.0.0 or higher
 - **Bun**: Latest version
-- **PostgreSQL**: v14 or higher (for authentication features)
 - **Modern Browser**: Chrome/Firefox/Safari/Edge (latest versions)
 
 ## 🚀 Getting Started
@@ -135,14 +132,6 @@ cp "_example .env" .env
 
 2. Configure your environment variables:
 ```env
-# Database Configuration
-DB_USER=postgres
-DB_PASSWORD=your_password
-DB_HOST=localhost
-DB_PORT=5432
-DB_NAME=plan-eo
-DATABASE_URL=postgres://user:password@localhost:5432/plan-eo
-
 # MapTiler API (for satellite/terrain maps)
 VITE_MAPTILER_KEY=your_maptiler_api_key
 
@@ -151,12 +140,6 @@ VITE_TITILER_ENDPOINT=http://localhost:8000
 
 # R2 Storage Configuration
 VITE_R2_POINTS_BASE_URL=https://your-bucket.r2.dev/01_Points
-
-# Authentication (if using auth features)
-AUTH_SECRET=your-secret-key
-GOOGLE_ID=your-google-client-id
-GOOGLE_SECRET=your-google-client-secret
-RESEND_API_KEY=your-resend-api-key
 ```
 
 ### Development
@@ -328,16 +311,6 @@ Access via the gear icon (⚙️) in the sidebar:
 - **3D Bar Thickness**: Control base thickness of 3D visualizations
 - **Data Points Toggle**: Show/hide point markers
 - **Raster Layers Toggle**: Show/hide raster overlays
-
-## 🔐 Authentication System
-
-The application includes a comprehensive authentication system with:
-- Multiple auth providers (Email, Google, Credentials)
-- Role-based access control (User/Admin)
-- PostgreSQL user management
-- JWT session handling
-
-See [AUTH.md](./AUTH.md) for detailed authentication documentation.
 
 ## 🧪 Development Guide
 
