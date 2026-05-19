@@ -42,6 +42,13 @@
 	export let initialZoom: number = 2; // Default zoom level
 	export let initialStyleId: string | null = null; // Optional style ID to use
 
+	type AnnotationCoordinate = [number, number];
+	type AnnotationFeature = {
+		type: 'Feature';
+		properties: { id: string; active?: boolean };
+		geometry: { type: 'LineString'; coordinates: AnnotationCoordinate[] };
+	};
+
 	// Track the global opacity value for raster layers
 	let globalOpacity = 80; // Default to 80%
 
@@ -59,6 +66,13 @@
 	let paperDemoAnimation: number | null = null;
 	let paperDemoStartedAt = 0;
 	const paperDemoLayerId = 'weesp-paper-survey';
+	let annotationDrawingEnabled = false;
+	let annotationIsDrawing = false;
+	let annotationFeatures: AnnotationFeature[] = [];
+	let activeAnnotation: AnnotationCoordinate[] = [];
+	const annotationsSourceId = 'annotation-drawings';
+	const annotationsHaloLayerId = 'annotation-drawings-halo';
+	const annotationsLayerId = 'annotation-drawings-line';
 
 	// Simple cache for SE rasters to compute CIs without reloading each click
 	const seRasterCache = new Map<
@@ -93,6 +107,10 @@
 	// Handle cursor change immediately (no debounce)
 	function handleCursorChange(event: maplibregl.MapMouseEvent) {
 		if (!map) return;
+		if (annotationDrawingEnabled) {
+			map.getCanvas().style.cursor = 'crosshair';
+			return;
+		}
 
 		const coords: [number, number] = [event.lngLat.lng, event.lngLat.lat];
 		const currentRasterLayers = $rasterLayers;
@@ -116,6 +134,11 @@
 	// Handle map hover for raster feedback - fast version for tooltip
 	function handleMapHoverFast(event: maplibregl.MapMouseEvent) {
 		if (!map) return;
+		if (annotationDrawingEnabled) {
+			debugInfo.hoverInRaster = false;
+			debugInfo.hoverRasterValue = null;
+			return;
+		}
 
 		const coords: [number, number] = [event.lngLat.lng, event.lngLat.lat];
 		const currentRasterLayers = $rasterLayers;
@@ -140,6 +163,7 @@
 	// Slower update for debug panel details
 	function handleMapHoverDebug(event: maplibregl.MapMouseEvent) {
 		if (!map) return;
+		if (annotationDrawingEnabled) return;
 
 		const coords: [number, number] = [event.lngLat.lng, event.lngLat.lat];
 		const currentRasterLayers = $rasterLayers;
@@ -172,6 +196,9 @@
 		map.on('mousemove', handleCursorChange);
 		map.on('mousemove', debouncedHoverFast);
 		map.on('mousemove', debouncedHoverDebug);
+		map.on('mousedown', handleAnnotationMouseDown);
+		map.on('mousemove', handleAnnotationMouseMove);
+		map.on('mouseup', handleAnnotationMouseUp);
 
 		if (map && !map.getSource('country-boundaries')) {
 			map.addSource('country-boundaries', {
@@ -207,6 +234,11 @@
 	// Handle map click event — raster clicks only
 	async function handleMapClick(event: CustomEvent) {
 		if (!map) return;
+		if (annotationDrawingEnabled) {
+			showPopover = false;
+			isLoading.set(false);
+			return;
+		}
 
 		showPopover = false;
 		popoverCoordinates = null;
@@ -405,6 +437,155 @@
 		paperDemoLayer = null;
 	}
 
+	function getAnnotationCollection() {
+		const features = [...annotationFeatures];
+		if (activeAnnotation.length > 1) {
+			features.push({
+				type: 'Feature',
+				properties: { id: 'active', active: true },
+				geometry: { type: 'LineString', coordinates: activeAnnotation }
+			});
+		}
+
+		return {
+			type: 'FeatureCollection',
+			features
+		};
+	}
+
+	function ensureAnnotationLayers() {
+		if (!map || !isStyleLoaded) return;
+
+		if (!map.getSource(annotationsSourceId)) {
+			map.addSource(annotationsSourceId, {
+				type: 'geojson',
+				data: getAnnotationCollection() as any
+			});
+		}
+
+		if (!map.getLayer(annotationsHaloLayerId)) {
+			map.addLayer({
+				id: annotationsHaloLayerId,
+				type: 'line',
+				source: annotationsSourceId,
+				paint: {
+					'line-color': '#06131f',
+					'line-width': ['case', ['boolean', ['get', 'active'], false], 8, 7],
+					'line-opacity': 0.55,
+					'line-blur': 2
+				}
+			} as any);
+		}
+
+		if (!map.getLayer(annotationsLayerId)) {
+			map.addLayer({
+				id: annotationsLayerId,
+				type: 'line',
+				source: annotationsSourceId,
+				paint: {
+					'line-color': ['case', ['boolean', ['get', 'active'], false], '#ffb84d', '#39d2ff'],
+					'line-width': ['case', ['boolean', ['get', 'active'], false], 4, 3],
+					'line-opacity': 0.95
+				}
+			} as any);
+		}
+
+		moveAnnotationLayersToTop();
+	}
+
+	function syncAnnotationLayers() {
+		if (!map || !isStyleLoaded) return;
+		ensureAnnotationLayers();
+		const source = map.getSource(annotationsSourceId) as { setData?: (data: any) => void } | undefined;
+		source?.setData?.(getAnnotationCollection());
+		moveAnnotationLayersToTop();
+	}
+
+	function moveAnnotationLayersToTop() {
+		if (!map) return;
+		for (const layerId of [annotationsHaloLayerId, annotationsLayerId]) {
+			if (map.getLayer(layerId)) map.moveLayer(layerId);
+		}
+	}
+
+	function setAnnotationDrawingEnabled(enabled: boolean) {
+		annotationDrawingEnabled = enabled;
+		showPopover = false;
+		if (!map) return;
+
+		if (enabled) {
+			map.dragPan.disable();
+			map.getCanvas().style.cursor = 'crosshair';
+			ensureAnnotationLayers();
+		} else {
+			finishActiveAnnotation();
+			map.dragPan.enable();
+			map.getCanvas().style.cursor = '';
+		}
+	}
+
+	function handleAnnotationMouseDown(event: maplibregl.MapMouseEvent) {
+		if (!annotationDrawingEnabled) return;
+		(event as any).preventDefault?.();
+		event.originalEvent?.preventDefault?.();
+		showPopover = false;
+		annotationIsDrawing = true;
+		activeAnnotation = [[event.lngLat.lng, event.lngLat.lat]];
+		syncAnnotationLayers();
+	}
+
+	function handleAnnotationMouseMove(event: maplibregl.MapMouseEvent) {
+		if (!annotationDrawingEnabled || !annotationIsDrawing) return;
+		addAnnotationPoint([event.lngLat.lng, event.lngLat.lat]);
+	}
+
+	function handleAnnotationMouseUp(event: maplibregl.MapMouseEvent) {
+		if (!annotationDrawingEnabled || !annotationIsDrawing) return;
+		addAnnotationPoint([event.lngLat.lng, event.lngLat.lat]);
+		finishActiveAnnotation();
+	}
+
+	function addAnnotationPoint(point: AnnotationCoordinate) {
+		const last = activeAnnotation[activeAnnotation.length - 1];
+		if (last && Math.hypot(point[0] - last[0], point[1] - last[1]) < 0.000003) return;
+		activeAnnotation = [...activeAnnotation, point];
+		syncAnnotationLayers();
+	}
+
+	function finishActiveAnnotation() {
+		if (!annotationIsDrawing) return;
+		if (activeAnnotation.length > 1) {
+			annotationFeatures = [
+				...annotationFeatures,
+				{
+					type: 'Feature',
+					properties: { id: `annotation-${Date.now()}` },
+					geometry: { type: 'LineString', coordinates: activeAnnotation }
+				}
+			];
+		}
+		annotationIsDrawing = false;
+		activeAnnotation = [];
+		syncAnnotationLayers();
+	}
+
+	function undoAnnotation() {
+		if (annotationIsDrawing) {
+			annotationIsDrawing = false;
+			activeAnnotation = [];
+		} else {
+			annotationFeatures = annotationFeatures.slice(0, -1);
+		}
+		syncAnnotationLayers();
+	}
+
+	function clearAnnotations() {
+		annotationIsDrawing = false;
+		activeAnnotation = [];
+		annotationFeatures = [];
+		syncAnnotationLayers();
+	}
+
 	onMount(async () => {
 		// Register this component's ensureLayerOrder function globally for access from stores
 		(window as any).__mapComponent = {
@@ -442,6 +623,9 @@
 			map.off('mousemove', handleCursorChange);
 			map.off('mousemove', debouncedHoverFast);
 			map.off('mousemove', debouncedHoverDebug);
+			map.off('mousedown', handleAnnotationMouseDown);
+			map.off('mousemove', handleAnnotationMouseMove);
+			map.off('mouseup', handleAnnotationMouseUp);
 		}
 	});
 
@@ -453,6 +637,12 @@
 				}
 			});
 		}
+	}
+
+	$: if (map && isStyleLoaded) {
+		annotationFeatures;
+		activeAnnotation;
+		syncAnnotationLayers();
 	}
 
 	$: if (map && isStyleLoaded) {
@@ -511,6 +701,40 @@
 
 	{#if map}
 		<MapControls {map} position="top-right" />
+	{/if}
+
+	{#if map}
+		<div class="annotation-toolbar absolute bottom-6 right-4 z-50 flex flex-col items-end gap-2">
+			<div class="flex items-center gap-1 rounded-lg border border-base-300/50 bg-base-100/90 p-1 shadow-lg backdrop-blur-md">
+				<button
+					class="btn btn-sm"
+					class:btn-primary={annotationDrawingEnabled}
+					class:btn-ghost={!annotationDrawingEnabled}
+					onclick={() => setAnnotationDrawingEnabled(!annotationDrawingEnabled)}
+				>
+					{annotationDrawingEnabled ? 'Drawing on' : 'Draw'}
+				</button>
+				<button
+					class="btn btn-ghost btn-sm"
+					disabled={annotationFeatures.length === 0 && !annotationIsDrawing}
+					onclick={undoAnnotation}
+				>
+					Undo
+				</button>
+				<button
+					class="btn btn-ghost btn-sm"
+					disabled={annotationFeatures.length === 0 && !annotationIsDrawing}
+					onclick={clearAnnotations}
+				>
+					Clear
+				</button>
+			</div>
+			{#if annotationDrawingEnabled}
+				<div class="max-w-64 rounded-lg border border-primary/20 bg-base-100/90 px-3 py-2 text-xs text-base-content/65 shadow-lg backdrop-blur-md">
+					Drag on the map to sketch an annotation. Drawing mode disables map panning until turned off.
+				</div>
+			{/if}
+		</div>
 	{/if}
 
 	{#if map && isStyleLoaded}
