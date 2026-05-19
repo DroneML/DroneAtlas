@@ -93,7 +93,9 @@ export async function addRasterLayerFromUrl(url: string): Promise<void> {
   try {
     const debugMode = get(rasterDebugMode);
     const { dataUrl, metadata, bounds, rasterData, width, height, rescaleUsed } = await loadAndProcessGeoTIFF(url, {
-      debugMode: debugMode
+      debugMode: debugMode,
+      colormap: tempLayer.colormap,
+      rescale: tempLayer.rescale
     });
     const finalLayer: RasterLayer = {
       ...tempLayer,
@@ -152,7 +154,9 @@ export async function fetchAndSetLayerBounds(layerId: string): Promise<void> {
   try {
     const debugMode = get(rasterDebugMode);
     const { dataUrl, metadata, bounds, rasterData, width, height, rescaleUsed } = await loadAndProcessGeoTIFF(layer.sourceUrl, {
-      debugMode: debugMode
+      debugMode: debugMode,
+      colormap: layer.colormap,
+      rescale: layer.rescale
     });
     rasterLayers.update((currentLayers) => {
       const layerToUpdate = currentLayers.get(layerId);
@@ -224,4 +228,3 @@ export function removeRasterLayer(id: string): void {
 export function toggleDebugMode(): void {
   rasterDebugMode.update(mode => !mode);
 }
-

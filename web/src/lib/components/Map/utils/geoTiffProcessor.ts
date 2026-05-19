@@ -298,27 +298,61 @@ export function validateBounds(bounds: number[], projectionInfo?: string): numbe
  * Get color from the viridis colormap
  * Using the exact same implementation as in GeoTIFFExample.svelte
  */
-function getViridisColor(value: number, rescale: [number, number]): [number, number, number] {
+const COLOR_MAPS: Record<string, [number, number, number][]> = {
+  viridis: VIRIDIS_COLORMAP as [number, number, number][],
+  inferno: [
+    [0, 0, 4],
+    [40, 11, 84],
+    [101, 21, 110],
+    [159, 42, 99],
+    [212, 72, 66],
+    [245, 125, 21],
+    [250, 193, 39],
+    [252, 255, 164]
+  ],
+  plasma: [
+    [13, 8, 135],
+    [75, 3, 161],
+    [125, 3, 168],
+    [168, 34, 150],
+    [203, 70, 121],
+    [229, 107, 93],
+    [248, 148, 65],
+    [240, 249, 33]
+  ],
+  terrain: [
+    [51, 102, 0],
+    [102, 153, 0],
+    [204, 204, 0],
+    [204, 153, 51],
+    [153, 102, 51],
+    [192, 192, 192],
+    [255, 255, 255]
+  ]
+};
+
+function getColor(value: number, rescale: [number, number], colormapName = 'viridis'): [number, number, number] {
   // Normalize value using provided rescale range
   const [minV, maxV] = rescale;
   const denom = maxV - minV === 0 ? 1 : maxV - minV;
   const rescaledValue = Math.min(1, Math.max(0, (value - minV) / denom));
+  const colormap = COLOR_MAPS[colormapName] ?? COLOR_MAPS.viridis;
 
   // Map to colormap index
-  const index = rescaledValue * (VIRIDIS_COLORMAP.length - 1);
+  const index = rescaledValue * (colormap.length - 1);
   const lowerIndex = Math.floor(index);
-  const upperIndex = Math.min(VIRIDIS_COLORMAP.length - 1, lowerIndex + 1);
+  const upperIndex = Math.min(colormap.length - 1, lowerIndex + 1);
   const t = index - lowerIndex; // Interpolation factor
 
   // Interpolate between colors
   if (lowerIndex === upperIndex) {
     // Ensure we return a tuple of exactly 3 numbers
-    const color = VIRIDIS_COLORMAP[lowerIndex];
+    const color = colormap[lowerIndex];
     return [color[0], color[1], color[2]];
   }
 
-  const lowerColor = VIRIDIS_COLORMAP[lowerIndex];
-  const upperColor = VIRIDIS_COLORMAP[upperIndex];
+  const lowerColor = colormap[lowerIndex];
+  const upperColor = colormap[upperIndex];
 
   // Ensure we return a tuple of exactly 3 numbers
   return [
@@ -447,7 +481,7 @@ async function processEPSG4326ToMercator(
           imageData.data[outIndex * 4 + 2] = 0;
           imageData.data[outIndex * 4 + 3] = 255;
         } else {
-          const [r, g, b] = getViridisColor(value, rescale);
+          const [r, g, b] = getColor(value, rescale, options.colormap);
           imageData.data[outIndex * 4] = r;
           imageData.data[outIndex * 4 + 1] = g;
           imageData.data[outIndex * 4 + 2] = b;
@@ -595,7 +629,7 @@ export async function processGeoTIFF(
           imageData.data[canvasIndex * 4 + 3] = 255; // Alpha = 255 (opaque)
         } else {
           // Apply viridis colormap (including for 0 values)
-          const [r, g, b] = getViridisColor(value, rescale);
+          const [r, g, b] = getColor(value, rescale, options.colormap);
           imageData.data[canvasIndex * 4] = r;
           imageData.data[canvasIndex * 4 + 1] = g;
           imageData.data[canvasIndex * 4 + 2] = b;

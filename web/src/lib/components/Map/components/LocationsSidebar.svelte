@@ -54,13 +54,19 @@
 			layerOpacities[layer.id] = (layer.opacity ?? 0.8) * 100;
 		}
 
+		for (const layer of location.layers) {
+			if (layer.defaultEnabled) toggleProjectLayer(layer, true);
+		}
+
 		if (map) {
+			const duration = 2000;
+			dispatch('flightstart', { duration, target: 'location' });
 			map.flyTo({
 				center: location.center,
 				zoom: location.zoom,
 				bearing: location.bearing ?? 0,
 				pitch: location.pitch ?? 0,
-				duration: 2000
+				duration
 			});
 		}
 	}
@@ -70,12 +76,14 @@
 		layerOpacities = {};
 
 		if (map) {
+			const duration = 1500;
+			dispatch('flightstart', { duration, target: 'overview' });
 			map.flyTo({
 				center: [5.5, 52.0],
 				zoom: 7,
 				bearing: 0,
 				pitch: 0,
-				duration: 1500
+				duration
 			});
 		}
 	}
@@ -98,6 +106,10 @@
 
 	function getOpacity(layerId: string, defaultOpacity: number): number {
 		return layerOpacities[layerId] ?? defaultOpacity * 100;
+	}
+
+	function formatLayerType(type: ProjectLayerDef['type']): string {
+		return type.replace('-', ' ');
 	}
 
 	// Count enabled layers for the 3D stack preview
@@ -148,7 +160,7 @@
 				</button>
 				<span class="text-sm font-semibold truncate ml-1">{$selectedLocation.name}</span>
 			{:else}
-				<h3 class="text-sm font-semibold">Locations</h3>
+				<h3 class="text-sm font-semibold">DroneML Paper Demo</h3>
 			{/if}
 		{/if}
 		<div class="ml-auto flex items-center gap-0.5">
@@ -180,6 +192,14 @@
 	{#if !collapsed}
 		<div class="overflow-y-auto p-2" style="max-height: calc(100vh - 180px);">
 			{#if !$selectedLocation}
+				<div class="mb-2 rounded-lg border border-primary/20 bg-gradient-to-br from-primary/10 via-base-100 to-secondary/10 p-3">
+					<div class="text-[10px] font-semibold uppercase tracking-[0.2em] text-primary">Main route demo</div>
+					<div class="mt-1 text-base font-semibold leading-tight">In search of a castle</div>
+					<p class="mt-1 text-xs leading-snug text-base-content/60">
+						Open the Weesp case to follow the paper workflow: sensor layers, expert labels, DroneML probability, and 3D site interpretation.
+					</p>
+				</div>
+
 				<!-- Location List -->
 				<ul class="flex flex-col gap-1.5">
 					{#each $projectLocations as location (location.id)}
@@ -193,11 +213,26 @@
 									<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5c-1.38 0-2.5-1.12-2.5-2.5s1.12-2.5 2.5-2.5 2.5 1.12 2.5 2.5-1.12 2.5-2.5 2.5z"/></svg>
 								</div>
 								<div class="min-w-0 flex-1">
-									<div class="text-sm font-medium group-hover:text-primary">{location.name}</div>
+									<div class="flex items-center gap-1.5">
+										<div class="truncate text-sm font-medium group-hover:text-primary">{location.name}</div>
+										{#if location.caseStudy}
+											<span class="badge badge-primary badge-xs shrink-0">paper</span>
+										{/if}
+									</div>
+									{#if location.subtitle}
+										<div class="mt-0.5 text-xs font-medium text-base-content/60">{location.subtitle}</div>
+									{/if}
 									<div class="mt-0.5 text-xs text-base-content/50 line-clamp-2">{location.description}</div>
+									{#if location.facts}
+										<div class="mt-1 flex flex-wrap gap-1">
+											{#each location.facts.slice(0, 2) as fact}
+												<span class="rounded bg-base-200/80 px-1.5 py-0.5 text-[10px] text-base-content/60">{fact.label}: {fact.value}</span>
+											{/each}
+										</div>
+									{/if}
 									<div class="mt-1 flex flex-wrap gap-1">
 										{#each location.layers as layer (layer.id)}
-											<span class="badge badge-xs {getLayerTypeColor(layer.type)}">{layer.type}</span>
+											<span class="badge badge-xs {getLayerTypeColor(layer.type)}">{formatLayerType(layer.type)}</span>
 										{/each}
 									</div>
 								</div>
@@ -208,7 +243,55 @@
 			{:else}
 				<!-- Selected Location: 3D Stack Preview + Layer Controls -->
 				<div class="flex flex-col gap-2">
-					<p class="px-1 pb-1 text-xs text-base-content/50">{$selectedLocation.description}</p>
+					<div class="rounded-lg border border-primary/15 bg-base-200/35 p-3">
+						<div class="text-[10px] font-semibold uppercase tracking-[0.18em] text-primary/80">
+							{$selectedLocation.caseStudy ?? 'Project case'}
+						</div>
+						<h3 class="mt-1 text-sm font-semibold leading-tight">
+							{$selectedLocation.subtitle ?? $selectedLocation.name}
+						</h3>
+						<p class="mt-1 text-xs leading-snug text-base-content/60">{$selectedLocation.description}</p>
+						{#if $selectedLocation.period}
+							<div class="mt-2 rounded bg-base-100/60 px-2 py-1 text-[10px] text-base-content/60">
+								{$selectedLocation.period}
+							</div>
+						{/if}
+						{#if $selectedLocation.facts}
+							<div class="mt-2 grid grid-cols-2 gap-1.5">
+								{#each $selectedLocation.facts as fact}
+									<div class="rounded border border-base-300/50 bg-base-100/55 px-2 py-1">
+										<div class="text-[9px] uppercase tracking-wide text-base-content/40">{fact.label}</div>
+										<div class="text-xs font-semibold text-base-content/80">{fact.value}</div>
+									</div>
+								{/each}
+							</div>
+						{/if}
+					</div>
+
+					{#if $selectedLocation.workflow}
+						<div class="rounded-lg border border-base-300/45 bg-base-100/60 p-2">
+							<div class="mb-1 px-1 text-[10px] font-semibold uppercase tracking-[0.16em] text-base-content/45">DroneML workflow</div>
+							<div class="flex flex-col gap-1">
+								{#each $selectedLocation.workflow as step}
+									<div class="rounded bg-base-200/45 px-2 py-1.5">
+										<div class="text-[11px] font-semibold text-base-content/80">{step.title}</div>
+										<div class="text-[10px] leading-snug text-base-content/50">{step.description}</div>
+									</div>
+								{/each}
+							</div>
+						</div>
+					{/if}
+
+					{#if $selectedLocation.findings}
+						<div class="rounded-lg border border-secondary/15 bg-secondary/5 p-2">
+							<div class="mb-1 px-1 text-[10px] font-semibold uppercase tracking-[0.16em] text-secondary">Interpretation targets</div>
+							<div class="flex flex-wrap gap-1">
+								{#each $selectedLocation.findings as finding}
+									<span class="rounded-full bg-base-100/70 px-2 py-0.5 text-[10px] text-base-content/60">{finding}</span>
+								{/each}
+							</div>
+						</div>
+					{/if}
 
 					<!-- 3D Layer Stack Preview -->
 					{#if getEnabledLayers($selectedLocation, $enabledProjectLayers).length > 0}
@@ -255,8 +338,16 @@
 								></span>
 								<span class="flex-1 text-xs" class:font-medium={enabled}>{layer.name}</span>
 							</label>
+							{#if layer.description}
+								<p class="mt-0.5 pl-6 text-[10px] leading-snug text-base-content/45">{layer.description}</p>
+							{/if}
 
 							{#if enabled}
+								{#if layer.evidence}
+									<p class="mt-1 rounded bg-base-100/55 px-2 py-1 text-[10px] leading-snug text-base-content/55">
+										Evidence: {layer.evidence}
+									</p>
+								{/if}
 								<!-- Compact opacity slider -->
 								<div class="mt-1 flex items-center gap-1.5 pl-6">
 									<input

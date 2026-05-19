@@ -108,16 +108,19 @@
 		color: #39d2ff;
 	}
 	.slide-title {
-		font-size: 26px;
-		font-weight: 600;
-		letter-spacing: 0.04em;
+		font-size: 13px;
+		font-weight: 700;
+		letter-spacing: 0.18em;
+		text-transform: uppercase;
 		max-width: 460px;
 		line-height: 1.15;
+		opacity: 0.62;
 	}
 	.slide-subtitle {
-		font-size: 14px;
+		display: none;
+		font-size: 12px;
 		letter-spacing: 0.08em;
-		opacity: 0.8;
+		opacity: 0.58;
 		font-weight: 400;
 		max-width: 420px;
 	}

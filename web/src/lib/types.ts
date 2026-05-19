@@ -113,12 +113,34 @@ export interface ProjectLayerDef {
   sourceUrl: string;
   colormap?: string;
   opacity?: number;
+  rescale?: [number, number];
+  description?: string;
+  evidence?: string;
+  defaultEnabled?: boolean;
+  layerMetadata?: RasterLayerMetadata;
+}
+
+export interface ProjectFact {
+  label: string;
+  value: string;
+}
+
+export interface ProjectWorkflowStep {
+  title: string;
+  description: string;
 }
 
 export interface ProjectLocation {
   id: string;
   name: string;
   description: string;
+  subtitle?: string;
+  caseStudy?: string;
+  period?: string;
+  citation?: string;
+  facts?: ProjectFact[];
+  findings?: string[];
+  workflow?: ProjectWorkflowStep[];
   center: [number, number]; // [lng, lat]
   zoom: number;
   bearing?: number;

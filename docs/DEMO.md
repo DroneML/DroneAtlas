@@ -1,159 +1,96 @@
-# DroneAtlas — Presentation Deck
+# DroneAtlas Presentation Deck
 
-A pausable, slide-based presentation that showcases DroneAtlas as a multi-sensor
-drone data exploration platform. Lives at `/demo` in the web app and is
-designed for live presenting — each slide plays its intro animation and
-**pauses at the end** until the presenter advances.
+The `/demo` route is a keynote-style presentation for the DroneML / DroneATLAS story. It explains the archaeological problem, the collaboration, the machine-learning pipeline, the DroneATLAS platform workflow, and ends with a cinematic map demo.
 
----
+The deck is presenter-friendly: every slide plays an intro animation and pauses at the end until the presenter advances.
 
-## Goals
+## Story
 
-### Primary
-- **Tell a story about this platform.** Multi-sensor drone data → ML inference
-  → explorable maps, anchored in a real site (Veldhoven archaeology).
-- **Be presenter-friendly.** Pause at every slide, presenter notes on demand,
-  visible slide indicator, keyboard and click-to-advance.
-- **Be reliably spectacular.** Deterministic animations, preloaded data,
-  graceful fallbacks — no live-demo failures.
+The deck is anchored in the Weesp case study from 4D Research Lab:
 
-### Secondary
-- **Demonstrate technical depth without lecturing.** 3D drone, animated flight
-  path, real ML-prediction raster rendered as a 3D heightfield, screen-pinned
-  sensor stack previews — all signal "this is a serious platform" without
-  bullet lists.
-- **Seed follow-up conversations.** After the demo, people should ask: "How
-  does the ML layer work?" "Can I add my own site?" "What sensors do you
-  support?"
+> A medieval castle disappeared from the landscape. The traces are still there, but only as faint signals across drone sensor layers. DroneML helps archaeologists find those signals. DroneATLAS makes that workflow accessible as a research platform.
 
----
+## Slide Arc
 
-## Narrative arc (9 slides)
+| # | Slide | Duration | Purpose |
+|---|-------|----------|---------|
+| 1 | In Search Of A Castle | 8 s | Cold open with the Weesp castle story. |
+| 2 | The Collaboration | 7 s | Show the partner ecosystem and roles. |
+| 3 | The Weesp Use Case | 8 s | Ground the project in real fieldwork and data. |
+| 4 | Many Sensors, One Hidden Site | 9 s | Show optical, thermal, multispectral, and LiDAR evidence. |
+| 5 | The Interpretation Bottleneck | 8 s | Explain why expert manual interpretation is hard to scale. |
+| 6 | DroneML: The Core | 8 s | Present DroneML as the scientific ML engine. |
+| 7 | How The Machine Learning Works | 9 s | Explain labels, UNet features, RandomForest, probability map. |
+| 8 | CoeusAI And Pycoeus | 8 s | Show usable QGIS interface and reusable Python core. |
+| 9 | DroneATLAS: The Research Platform | 8 s | Present DroneATLAS as the polished platform experience. |
+| 10 | Drag, Drop, Process | 9 s | Connect upload, layer organization, processing, and ML output. |
+| 11 | Explore The Site | 14 s | Cinematic map movement, drone flight, sensor layers. |
+| 12 | From Prediction To Archaeological Insight | 14 s | 3D ML probability surface as expert interpretation focus. |
 
-Each slide pauses at the end. `Duration` is the intro animation length, not a
-runtime cap.
+## Design Principles
 
-| # | Slide | Duration | Visual |
-|---|-------|----------|--------|
-| 1 | **Title** | 8 s | Centre card: *"DroneAtlas — seeing what the ground hides."* Slow cinematic zoom. |
-| 2 | **The Problem** | 20 s | Centre card: *"Terabytes of sensor data. An explorable insight is the hard part."* |
-| 3 | **The Site** | 25 s | Pin drop from globe to Veldhoven farmland. |
-| 4 | **The Flight** | 35 s | 3D drone runs the lawn-mower path over the survey box; live telemetry. |
-| 5 | **The Stack** | 40 s | Four stylised sensor layers fade in over the survey box (RGB · Thermal · LiDAR · ML). |
-| 6 | **Human vs. Machine** | 35 s | Split-reveal: RGB on the left, ML confidence heatmap wipes in from the right; detection cards slide in. |
-| 7 | **The Finding** | 40 s | Camera orbits 360° around the real `ml_prediction.tif` rendered as a 3D plasma heightfield; drone hovers above. |
-| 8 | **One Platform** | 25 s | Fly-hops Veldhoven → Ostia Antica → Veluwe. |
-| 9 | **Close** | 12 s | End card with stats and tagline. |
+- Start with a concrete story, not software architecture.
+- Keep the first ten slides keynote-like and readable.
+- Use the cinematic map only as the payoff after the audience understands the pipeline.
+- Present DroneATLAS as a platform, not as a prototype.
+- Make DroneML the core engine and DroneATLAS the researcher-facing environment.
+- Emphasize that ML supports archaeological interpretation; it does not replace it.
 
-All slide copy lives in `web/src/lib/demo/beats.ts`. Each slide has a
-`presenterNote` string shown only to the presenter (via `N`).
+## Visual Sources
 
----
+The deck references public imagery and facts from:
 
-## Showcase features
+- eScience Center article: "Anomalies in the Soil: Enhancing Archaeological Discoveries with Machine Learning using CoeusAI".
+- Waagen, J. (2023). 4DRL Report Series 4 - In search of a castle: Multisensor UAS research at the Medieval site of 't Huijs ten Bosch, Weesp. DOI: 10.21942/uva.23375486.v3. CC BY 4.0.
+- DroneML, CoeusAI, and Pycoeus pages in the Research Software Directory.
 
-### On-screen
-- **3D drone** — low-poly X-frame body with glowing rotors and sensor pod.
-- **Animated flight path** — dimmed full-path trace + bright drawn-so-far
-  segment in DroneAtlas cyan.
-- **Screen-pinned sensor stack** (slide 5) — stylised but visually credible
-  RGB / thermal / LiDAR / ML previews drawn over the Veldhoven survey bounds.
-- **Split-reveal** (slide 6) — same box, RGB on the left, ML heatmap on the
-  right with glowing anomaly blobs.
-- **3D ML-prediction heightfield** (slide 7) — the real `ml_prediction.tif`
-  downsampled and extruded (`z = confidence × 40m`) with a plasma vertex-colour
-  ramp. Camera does a full 360° orbit around it with the drone hovering above.
-  If the raster fails to load, a procedural fallback mesh keeps the slide from
-  looking broken.
-- **HUD** — brand, slide title, subtitle, caption, telemetry block (toggled
-  per slide via `showTelemetry`).
-- **Slide nav** — bottom-centre pill: prev / counter / dots / title / next.
-  Dots are clickable to jump to any slide.
-- **Presenter notes** — toggleable yellow panel (bottom-left) showing the
-  current slide's `presenterNote`.
-- **Slide-end hint** — small animated chip in the bottom-right when a slide
-  has finished its intro animation and is waiting for the presenter to
-  advance.
+## Image Slots
 
-### Under the hood
-- **SvelteKit route** `/demo`, SSR disabled, full-screen MapLibre with
-  interaction locked.
-- **Timeline driver** (`$lib/demo/timeline.ts`) — beats defined as
-  `{ start, duration, enter, tick, exit }`. Each `frame()` clamps progress
-  at the end of the current slide and **pauses**, setting `atSlideEnd = true`.
-  `nextSlide()` seeks to the next beat's start and auto-plays its intro.
-- **Three.js custom MapLibre layer** (`$lib/demo/DroneLayer.ts`) — shares the
-  map's WebGL context, uses `MercatorCoordinate` for world-space placement of
-  drone, path, particles, and the heightfield mesh.
-- **ML heightfield loader** (`$lib/demo/mlHeightfield.ts`) — calls the shared
-  `geoTiffProcessor.loadGeoTIFF` utility, downsamples to a 128×128 grid, and
-  returns values + WGS84 bounds. `syntheticHeightfield()` produces a procedural
-  fallback with three gaussian "foundation" peaks.
-- **Synthetic flight path** (`$lib/demo/path.ts`) — parameterised lawn-mower
-  pattern centred on Veldhoven (default 4 passes × 0.3 km).
-- **Reactive overlays** — plain Svelte components driven by `currentBeat.id`
-  and a handful of UI flags; no shared stores with the main app, no risk of
-  regression.
+Optional local images can be dropped into `web/static/demo/weesp/`. Missing images render as styled placeholders, and several slots fall back to public eScience article images until replaced.
 
----
+| File | Used On | Suggested Source |
+|------|---------|------------------|
+| `01-historical-castle.jpg` | Slide 1 | Historical drawing / report figure 2 or castle reconstruction. |
+| `02-weesp-field.jpg` | Slides 1 and 3 | Present-day Weesp field photo. |
+| `03-drone-fieldwork.jpg` | Slide 3 | Drone equipment / fieldwork photo. |
+| `04-satellite-ahn.jpg` | Reserved | Satellite/AHN context image from report figure 6 or 7. |
+| `05-optical-annotated.jpg` | Slide 4 | September optical annotated image, report figs. 18-20. |
+| `06-thermal-annotated.jpg` | Slide 4 | Thermal annotated image, report figs. 21-22 or article thermal image. |
+| `07-lidar-dtm-annotated.jpg` | Slide 4 | LiDAR DTM annotated image, report figs. 16-17. |
+| `08-ndvi-annotated.jpg` | Slide 4 | NDVI annotated image, report figs. 23-24. |
+| `09-all-anomalies.jpg` | Slide 5 | All identified anomalies, report figure 25. |
+| `10-coeus-probability.png` | Slides 7 and 8 | CoeusAI probability output from the eScience article. |
+| `11-coeus-qgis.jpg` | Slide 8 | CoeusAI interface inside QGIS. |
+| `12-droneatlas-platform.jpg` | Slide 9 | Polished DroneATLAS platform screenshot. |
+| `13-drag-drop-process.jpg` | Slide 10 | Drag/drop or processing workflow screenshot. |
+
+## Implementation Notes
+
+- `web/src/lib/demo/beats.ts` defines the 12-slide timeline, map movement, presenter notes, telemetry, and overlay triggers.
+- `web/src/lib/demo/components/ScientificNarrativeOverlay.svelte` defines the keynote visuals, partner cards, pipeline diagrams, platform mockup, and final cinematic captions.
+- `web/src/routes/demo/+page.svelte` anchors the synthetic survey path and final 3D probability surface near Weesp.
+- `web/src/lib/demo/mlHeightfield.ts` creates a deterministic castle-like probability surface for the final 3D result.
+- `web/src/lib/demo/DroneLayer.ts` renders the drone, flight path, particles, and final heightfield in the MapLibre WebGL context.
 
 ## Controls
 
 | Key | Action |
 |-----|--------|
-| `→` / `PageDown` | Next slide (plays its intro animation). Starts the deck on the first press if not yet playing. |
-| `SPACE` | Mid-slide: pause / resume the intro animation. At slide end: advance to next. |
-| `←` / `PageUp` | Previous slide. If you're more than 0.5 s into the current slide, restart it instead. |
-| `Home` / `R` | Reset everything and jump back to slide 1. |
-| `N` | Toggle presenter notes panel. |
-| Click anywhere (outside buttons) | Advance to next slide when current slide has ended. |
+| Right arrow / PageDown | Next slide. Starts the deck if not yet started. |
+| Space | Pause/resume. At slide end, advance to the next slide. |
+| Left arrow / PageUp | Previous slide or restart current slide. |
+| R / Home | Reset to slide 1. |
+| N | Toggle presenter notes. |
+| Click | Advance when the current slide has ended. |
 
----
+## Presenter Notes
 
-## Design tokens
+The full script and memorization version live in:
 
-- **Accent cyan** `#39d2ff` — brand, path glow, primary UI accents.
-- **Alert red** `#ff6b6b` — thermal, warning detections.
-- **Signal green** `#06ffa5` — LiDAR, vegetation.
-- **ML orange** `#ffb84d` — ML layer chip, foundation detection card.
-- **Presenter notes yellow** `#ffc938` / `#ffe8a3` — presenter-only panel.
-- **Background** near-black `#050810` to let glows read.
-- Typography: Inter (system fallback), uppercase kickers with 0.2–0.4em
-  letter-spacing for telemetry feel.
+`docs/DEMO_PRESENTATION_SCRIPT.md`
 
----
+## Reliability
 
-## Non-goals
-
-- **Not a real-time pipeline.** The flight path, particles (not used now),
-  detection confidences, and sensor chips are illustrative.
-- **Not interactive beyond slide nav.** The map itself is locked during
-  playback; the full product lives at `/`.
-- **Not a substitute for a product tour.** The deck is the 5-ish-minute hook;
-  the real demo happens in the app after the Q&A.
-
----
-
-## Risks & mitigations
-
-| Risk | Mitigation |
-|------|------------|
-| Live-demo glitch mid-show | Every slide is pause-at-end; `R` / `Home` reset; `← →` skip. |
-| `ml_prediction.tif` fails to load | `loadMlHeightfield` falls back to `syntheticHeightfield()` and the slide continues. |
-| Slow machine / dropped frames | Heightfield downsampled to 128×128 before upload; COGs not loaded onto the map during the deck. |
-| Copy feels cheesy | All slide copy + presenter notes live in `beats.ts` — iterate with stakeholders. |
-
----
-
-## Extending the deck
-
-- **Change the site.** `generateFlightPath({ center, passLengthKm, passes })`
-  takes a custom anchor; the heightfield loader accepts any raster URL via the
-  `projectLocations` store.
-- **Add/remove a slide.** Push a new `Beat` into `buildBeats()` with
-  `start: at(duration).start` (the `at()` helper handles offsets). Add a dot
-  for it automatically via `SlideNav`.
-- **Add a soundtrack.** A quiet synth bed + UI ticks on slide transitions
-  would add to the feel — keep optional since some venues are muted.
-- **Record a fallback video.** Screen-capture a full run once tuned so the
-  presenter always has a zero-risk backup.
+- The map uses a fixed Weesp-centred synthetic flight path.
+- The final ML surface is deterministic and generated locally, so the finale is not blocked by a GeoTIFF download or parser failure.
+- External article images enrich the keynote slides. If they fail to load, the deck still carries the story through text, diagrams, map, and 3D visuals.

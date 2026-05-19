@@ -3,9 +3,10 @@
 	import * as THREE from 'three';
 
 	export let visible: boolean = true;
+	export let zIndex: number = 20;
 	// Scene 'mode' controls subtle cinematic variations per slide.
-	// 'idle' — gentle hover; 'flight' — more assertive forward lean.
-	export let mode: 'idle' | 'flight' = 'idle';
+	// 'idle' — gentle hover; 'flight' — assertive hover; 'transit' — sweeping map-navigation flyby.
+	export let mode: 'idle' | 'flight' | 'transit' = 'idle';
 
 	let canvas: HTMLCanvasElement;
 	let raf: number | null = null;
@@ -15,6 +16,15 @@
 	let drone: THREE.Group | null = null;
 	let rotors: THREE.Group[] = [];
 	let startTime = 0;
+	let flightStart = 0;
+	let lastVisible = visible;
+	let lastMode = mode;
+
+	$: if (visible && (!lastVisible || lastMode !== mode)) {
+		flightStart = performance.now();
+	}
+	$: lastVisible = visible;
+	$: lastMode = mode;
 
 	function buildDrone(): { group: THREE.Group; rotors: THREE.Group[] } {
 		const g = new THREE.Group();
@@ -195,19 +205,34 @@
 		// Spin the rotors fast.
 		for (const r of rotors) r.rotation.y += 1.2;
 
-		// Gentle hover + drift.
-		const bob = Math.sin(t * 1.8) * 0.06;
-		const sway = Math.sin(t * 0.45) * 0.15;
-		const rise = Math.cos(t * 0.25) * 0.1;
-		drone.position.set(sway, -0.5 + bob + rise, 0);
+		if (mode === 'transit') {
+			const elapsed = (ts - (flightStart || ts)) / 1000;
+			const cycle = Math.min(1, elapsed / 2.2);
+			const k = 1 - Math.pow(1 - cycle, 3);
+			const arc = Math.sin(k * Math.PI);
+			drone.position.set(2.35 - k * 3.05, -0.92 + arc * 0.72, -0.15 - arc * 0.45);
+			drone.scale.setScalar(0.86 + arc * 0.42);
+			drone.rotation.set(
+				-0.32 + arc * 0.1,
+				-0.62 + k * 0.78,
+				0.48 - k * 0.96 + Math.sin(t * 2.2) * 0.04
+			);
+		} else {
+			// Gentle hover + drift.
+			const bob = Math.sin(t * 1.8) * 0.06;
+			const sway = Math.sin(t * 0.45) * 0.15;
+			const rise = Math.cos(t * 0.25) * 0.1;
+			drone.position.set(sway, -0.5 + bob + rise, 0);
+			drone.scale.setScalar(1);
 
-		// Slight yaw + pitch oscillation.
-		const flightLean = mode === 'flight' ? -0.18 : -0.08;
-		drone.rotation.set(
-			flightLean + Math.sin(t * 1.1) * 0.03,
-			Math.sin(t * 0.3) * 0.12 + 0.1, // slight facing 3/4 view
-			Math.sin(t * 0.9) * 0.04
-		);
+			// Slight yaw + pitch oscillation.
+			const flightLean = mode === 'flight' ? -0.18 : -0.08;
+			drone.rotation.set(
+				flightLean + Math.sin(t * 1.1) * 0.03,
+				Math.sin(t * 0.3) * 0.12 + 0.1, // slight facing 3/4 view
+				Math.sin(t * 0.9) * 0.04
+			);
+		}
 
 		// Blinking tail light.
 		const tail = drone.getObjectByName('tailLight') as THREE.Mesh | undefined;
@@ -269,13 +294,13 @@
 
 <canvas
 	bind:this={canvas}
-	class="hero-drone pointer-events-none absolute inset-0 z-20"
-	style="opacity: {visible ? 1 : 0}"
+	class="hero-drone pointer-events-none absolute inset-0"
+	style="opacity: {visible ? 1 : 0}; z-index: {zIndex}"
 ></canvas>
 
 <style>
 	.hero-drone {
-		transition: opacity 0.5s ease-out;
+		transition: opacity 0.28s ease-out;
 		width: 100%;
 		height: 100%;
 	}

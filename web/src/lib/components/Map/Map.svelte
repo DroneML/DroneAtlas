@@ -30,7 +30,12 @@
 	import RasterLegend from './components/RasterLegend.svelte';
 	import RasterDataOverlay from './components/RasterDataOverlay.svelte';
 	import LocationsSidebar from './components/LocationsSidebar.svelte';
-	import type { RasterLayer } from '$lib/types';
+	import HeroDrone from '$lib/demo/components/HeroDrone.svelte';
+	import { selectedLocation } from '$lib/stores/projects.store';
+	import { DroneLayer } from '$lib/demo/DroneLayer';
+	import { generateFlightPath } from '$lib/demo/path';
+	import { syntheticHeightfield } from '$lib/demo/mlHeightfield';
+	import type { ProjectLocation, RasterLayer } from '$lib/types';
 
 	// Props that can be passed to the component
 	export let initialCenter: [number, number] = [-25, 16]; // Default center coordinates [lng, lat]
@@ -46,6 +51,14 @@
 
 	// Debug overlay state
 	let showRasterDataOverlay = false; // Hide red pixels by default
+	let navigationDroneVisible = true;
+	let navigationDroneMode: 'idle' | 'transit' = 'idle';
+	let navigationDroneTimer: ReturnType<typeof setTimeout> | null = null;
+	let navigationFlightRun = 0;
+	let paperDemoLayer: DroneLayer | null = null;
+	let paperDemoAnimation: number | null = null;
+	let paperDemoStartedAt = 0;
+	const paperDemoLayerId = 'weesp-paper-survey';
 
 	// Simple cache for SE rasters to compute CIs without reloading each click
 	const seRasterCache = new Map<
@@ -319,6 +332,79 @@
 		}
 	}
 
+	function handleLocationFlightStart(
+		event: CustomEvent<{ duration?: number; target?: 'location' | 'overview' }>
+	) {
+		const run = ++navigationFlightRun;
+		const duration = event.detail.duration ?? 1800;
+		const target = event.detail.target ?? 'location';
+		const settleDelay = target === 'overview' ? 250 : 350;
+		const finishFlight = () => {
+			if (run !== navigationFlightRun) return;
+			navigationDroneMode = 'idle';
+			navigationDroneVisible = target === 'overview';
+			navigationDroneTimer = null;
+		};
+
+		navigationDroneVisible = true;
+		navigationDroneMode = 'transit';
+
+		if (navigationDroneTimer) clearTimeout(navigationDroneTimer);
+		navigationDroneTimer = setTimeout(finishFlight, duration + 650);
+
+		map?.once('moveend', () => {
+			if (run !== navigationFlightRun) return;
+			if (navigationDroneTimer) clearTimeout(navigationDroneTimer);
+			navigationDroneTimer = setTimeout(finishFlight, settleDelay);
+		});
+	}
+
+	function ensurePaperDemoLayer(location: ProjectLocation) {
+		if (!map || !isStyleLoaded || map.getLayer(paperDemoLayerId)) return;
+
+		stopPaperDemoLayer();
+
+		const path = generateFlightPath({
+			center: location.center,
+			passes: 5,
+			passLengthKm: 0.42,
+			passSpacingM: 42,
+			baseAlt: 72
+		});
+		const layer = new DroneLayer({ path, id: paperDemoLayerId });
+		map.addLayer(layer);
+
+		const heightfield = syntheticHeightfield(location.center, 0.0035, 128);
+		layer.setFindingHeightfield(heightfield, { heightMeters: 44 });
+		layer.setVisibility({ drone: true, path: true, particles: true, finding: true });
+		layer.setProgress(0);
+		layer.setParticleIntensity(0.35);
+
+		paperDemoLayer = layer;
+		paperDemoStartedAt = performance.now();
+		animatePaperDemoLayer();
+	}
+
+	function animatePaperDemoLayer(ts = performance.now()) {
+		if (!paperDemoLayer) return;
+		const progress = ((ts - paperDemoStartedAt) % 12000) / 12000;
+		paperDemoLayer.setProgress(progress);
+		paperDemoLayer.setParticleIntensity(0.22 + Math.sin(progress * Math.PI) * 0.32);
+		paperDemoAnimation = requestAnimationFrame(animatePaperDemoLayer);
+	}
+
+	function stopPaperDemoLayer() {
+		if (paperDemoAnimation !== null) {
+			cancelAnimationFrame(paperDemoAnimation);
+			paperDemoAnimation = null;
+		}
+
+		if (map?.getLayer(paperDemoLayerId)) {
+			map.removeLayer(paperDemoLayerId);
+		}
+		paperDemoLayer = null;
+	}
+
 	onMount(async () => {
 		// Register this component's ensureLayerOrder function globally for access from stores
 		(window as any).__mapComponent = {
@@ -345,6 +431,9 @@
 	});
 
 	onDestroy(() => {
+		if (navigationDroneTimer) clearTimeout(navigationDroneTimer);
+		stopPaperDemoLayer();
+
 		if ((window as any).__mapComponent) {
 			delete (window as any).__mapComponent;
 		}
@@ -363,6 +452,14 @@
 					serializeFiltersToUrl(map, globalOpacity);
 				}
 			});
+		}
+	}
+
+	$: if (map && isStyleLoaded) {
+		if ($selectedLocation?.id === 'weesp-castle') {
+			ensurePaperDemoLayer($selectedLocation);
+		} else {
+			stopPaperDemoLayer();
 		}
 	}
 
@@ -406,6 +503,12 @@
 		on:click={handleMapClick}
 	/>
 
+	<HeroDrone visible={navigationDroneVisible} mode={navigationDroneMode} zIndex={8} />
+	<div
+		class:navigation-active={navigationDroneMode === 'transit'}
+		class="navigation-cinema pointer-events-none absolute inset-0 z-[7]"
+	></div>
+
 	{#if map}
 		<MapControls {map} position="top-right" />
 	{/if}
@@ -418,6 +521,7 @@
 	<LocationsSidebar
 		{map}
 		bind:globalOpacity
+		on:flightstart={handleLocationFlightStart}
 		on:opacitychange={handleOpacityChange}
 		on:overlaytoggle={(e) => {
 			showRasterDataOverlay = e.detail.visible;
@@ -492,5 +596,18 @@
 	.error-icon {
 		font-size: 36px;
 		margin-bottom: 10px;
+	}
+
+	.navigation-cinema {
+		opacity: 0;
+		transition: opacity 0.28s ease-out;
+		background:
+			radial-gradient(circle at 70% 35%, rgba(57, 210, 255, 0.16), transparent 28%),
+			linear-gradient(115deg, transparent 0 44%, rgba(57, 210, 255, 0.08) 48%, transparent 58%),
+			radial-gradient(ellipse at center, transparent 48%, rgba(3, 8, 14, 0.34) 100%);
+		mix-blend-mode: screen;
+	}
+	.navigation-cinema.navigation-active {
+		opacity: 1;
 	}
 </style>

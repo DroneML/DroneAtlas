@@ -6,21 +6,14 @@
 	import { DroneLayer } from '$lib/demo/DroneLayer';
 	import { createTimeline, type Timeline, type Beat } from '$lib/demo/timeline';
 	import { buildBeats, type SceneRefs } from '$lib/demo/beats';
-	import { loadMlHeightfield, syntheticHeightfield } from '$lib/demo/mlHeightfield';
-	import { projectLocations } from '$lib/stores/projects.store';
-	import { base } from '$app/paths';
-	import { get } from 'svelte/store';
-	import HUD from '$lib/demo/components/HUD.svelte';
-	import ColdOpen from '$lib/demo/components/ColdOpen.svelte';
+	import { syntheticHeightfield } from '$lib/demo/mlHeightfield';
 	import SensorReveal from '$lib/demo/components/SensorReveal.svelte';
 	import DetectionCards from '$lib/demo/components/DetectionCards.svelte';
-	import EndCard from '$lib/demo/components/EndCard.svelte';
-	import SlideNav from '$lib/demo/components/SlideNav.svelte';
 	import PresenterNotes from '$lib/demo/components/PresenterNotes.svelte';
-	import SlideEndHint from '$lib/demo/components/SlideEndHint.svelte';
 	import SensorStack from '$lib/demo/components/SensorStack.svelte';
 	import SplitReveal from '$lib/demo/components/SplitReveal.svelte';
 	import HeroDrone from '$lib/demo/components/HeroDrone.svelte';
+	import ScientificNarrativeOverlay from '$lib/demo/components/ScientificNarrativeOverlay.svelte';
 
 	let mapContainer: HTMLDivElement;
 	let map: maplibregl.Map | null = null;
@@ -30,6 +23,7 @@
 
 	// Reactive slide state
 	let slideIndex = 0;
+	let beatProgress = 0;
 	let slideEnd = false;
 	let playing = false;
 	let slideStarted = false; // true once the first Play/Advance happens
@@ -53,22 +47,23 @@
 	let detectionCards = [
 		{
 			id: 'foundation',
-			label: 'Buried foundation · high conf.',
+			label: 'Stone wall signal · high conf.',
 			confidence: 0.92,
 			color: '#ffb84d',
 			visible: false
 		},
-		{ id: 'wall', label: 'Linear wall trace', confidence: 0.84, color: '#39d2ff', visible: false },
+		{ id: 'wall', label: 'Moat edge trace', confidence: 0.84, color: '#39d2ff', visible: false },
 		{
 			id: 'pit',
-			label: 'Thermal anomaly · pit',
+			label: 'Possible wall debris',
 			confidence: 0.77,
 			color: '#ff6b6b',
 			visible: false
 		}
 	];
 
-	const path = generateFlightPath();
+	const WEESP: [number, number] = [5.0456, 52.3077];
+	const path = generateFlightPath({ center: WEESP, passes: 5, passLengthKm: 0.42, passSpacingM: 42, baseAlt: 72 });
 
 	// Survey box bbox comes from the flight path, padded slightly.
 	const pad = 0.0003;
@@ -79,32 +74,21 @@
 		path.bbox[3] + pad
 	];
 
-	const finaleStats = [
-		{ label: 'AREA MAPPED', value: '0.36 km²' },
-		{ label: 'SENSORS', value: '4' },
-		{ label: 'SITES', value: '3' },
-		{ label: 'PIPELINE', value: 'RGB · THERM · LIDAR · ML' }
-	];
-
 	$: currentBeat = beats[slideIndex];
 	$: showTelemetry = currentBeat?.showTelemetry ?? false;
-	$: showColdOpen = currentBeat?.id === 'title';
-	$: showProblemOverlay = currentBeat?.id === 'problem';
-	$: showEndCard = currentBeat?.id === 'close';
 	$: isLastSlide = slideIndex === beats.length - 1;
-	$: showSensorStack = currentBeat?.id === 'stack';
-	$: showSplitReveal = currentBeat?.id === 'insight';
+	$: showSensorStack =
+		currentBeat?.id === 'sensors' || currentBeat?.id === 'process' || currentBeat?.id === 'explore';
+	$: showSplitReveal =
+		currentBeat?.id === 'droneml' || currentBeat?.id === 'ml' || currentBeat?.id === 'process';
 	// Hero drone flies alongside the camera through most slides. Hide on the
 	// title/problem/close overlays (full-screen cards) and on 'finding' where
 	// the heightfield mesh and the in-scene drone take centre stage.
 	$: heroDroneVisible =
 		slideStarted &&
-		currentBeat?.id !== 'title' &&
-		currentBeat?.id !== 'problem' &&
-		currentBeat?.id !== 'finding' &&
-		currentBeat?.id !== 'close';
+		(currentBeat?.id === 'process' || currentBeat?.id === 'explore' || currentBeat?.id === 'insight');
 	$: heroDroneMode = (
-		currentBeat?.id === 'flight' || currentBeat?.id === 'site' ? 'flight' : 'idle'
+		currentBeat?.id === 'process' || currentBeat?.id === 'explore' ? 'flight' : 'idle'
 	) as 'flight' | 'idle';
 
 	function handleKeydown(e: KeyboardEvent) {
@@ -312,9 +296,9 @@
 			droneLayer = new DroneLayer({ path });
 			map.addLayer(droneLayer);
 
-			// Preload the ML prediction heightfield for slide 7 early so it's
-			// ready by the time the user reaches it. Falls back to a procedural
-			// mesh if the network/parse fails.
+			// Build a deterministic Weesp-centred probability surface for the
+			// cinematic finale. It visually represents DroneML output while keeping
+			// the deck independent from network/data parsing failures.
 			preloadHeightfield();
 
 			const refs: SceneRefs = {
@@ -344,6 +328,7 @@
 
 			timeline.state.subscribe((s) => {
 				slideIndex = s.slideIndex;
+				beatProgress = s.beatProgress;
 				slideEnd = s.atSlideEnd;
 				playing = s.playing;
 			});
@@ -352,20 +337,10 @@
 		window.addEventListener('keydown', handleKeydown);
 	});
 
-	async function preloadHeightfield() {
+	function preloadHeightfield() {
 		if (!droneLayer) return;
-		const locations = get(projectLocations);
-		const veldhoven = locations.find((l) => l.id === 'veldhoven');
-		const mlLayer = veldhoven?.layers.find((l) => l.type === 'ml-prediction');
-		const url = mlLayer?.sourceUrl ?? `${base}/mock/veldhoven/ml_prediction.tif`;
-		try {
-			const hf = await loadMlHeightfield(url, 128);
-			droneLayer.setFindingHeightfield(hf, { heightMeters: 40 });
-		} catch (err) {
-			console.warn('[demo] ml_prediction.tif failed to load; using synthetic fallback', err);
-			const hf = syntheticHeightfield(path.center, 0.003, 96);
-			droneLayer.setFindingHeightfield(hf, { heightMeters: 35 });
-		}
+		const hf = syntheticHeightfield(path.center, 0.0035, 128);
+		droneLayer.setFindingHeightfield(hf, { heightMeters: 44 });
 	}
 
 	onDestroy(() => {
@@ -379,76 +354,48 @@
 	<title>DroneAtlas — Live Demo</title>
 </svelte:head>
 
-<!-- Click-to-advance on the demo root. Buttons inside stop propagation. -->
-<div class="demo-root fixed inset-0 overflow-hidden" on:click={handleMapClick} role="presentation">
-	<div bind:this={mapContainer} class="absolute inset-0"></div>
+<div class="demo-shell fixed inset-0 overflow-hidden" role="presentation">
+	<!-- 16:9 keynote stage. Click-to-advance happens on the slide surface. -->
+	<div class="demo-root absolute" on:click={handleMapClick} role="presentation">
+		<div bind:this={mapContainer} class="absolute inset-0"></div>
 
-	<!-- Hero drone flies in front of the camera across most slides -->
-	<HeroDrone visible={heroDroneVisible} mode={heroDroneMode} />
+		<!-- Hero drone flies in front of the camera across most slides -->
+		<HeroDrone visible={heroDroneVisible} mode={heroDroneMode} />
 
-	<!-- Survey box overlay (pinned to map) for stack & split-reveal slides -->
-	{#if showSensorStack}
-		<SensorStack
-			{map}
-			bbox={surveyBbox}
-			visible={surveyBoxVisible}
-			progress={sensorStackProgress}
+		<!-- Survey box overlay (pinned to map) for stack & split-reveal slides -->
+		{#if showSensorStack}
+			<SensorStack
+				{map}
+				bbox={surveyBbox}
+				visible={surveyBoxVisible}
+				progress={sensorStackProgress}
+			/>
+		{/if}
+		{#if showSplitReveal}
+			<SplitReveal
+				{map}
+				bbox={surveyBbox}
+				visible={surveyBoxVisible}
+				progress={splitRevealProgress}
+			/>
+		{/if}
+
+		<ScientificNarrativeOverlay
+			visible={slideStarted}
+			slideId={currentBeat?.id ?? ''}
+			progress={beatProgress}
 		/>
-	{/if}
-	{#if showSplitReveal}
-		<SplitReveal
-			{map}
-			bbox={surveyBbox}
-			visible={surveyBoxVisible}
-			progress={splitRevealProgress}
-		/>
-	{/if}
 
-	<!-- Centered title / problem overlay (slides 1 & 2) -->
-	<ColdOpen
-		visible={showColdOpen && slideStarted}
-		kicker="DRONEATLAS · NETHERLANDS eSCIENCE CENTER"
-		title={'DroneAtlas'}
-		subtitle={'Seeing what the ground hides.'}
-		variant="hero"
-	/>
-	<ColdOpen
-		visible={showProblemOverlay}
-		kicker="THE CHALLENGE"
-		title={'Terabytes of sensor data.\nAn explorable insight is the hard part.'}
-		subtitle={''}
-		variant="problem"
-	/>
+		{#if currentBeat?.caption && slideStarted}
+			<div class="slide-caption pointer-events-none absolute inset-x-0 bottom-[7%] z-30 flex justify-center">
+				<div>{currentBeat.caption}</div>
+			</div>
+		{/if}
 
-	<HUD
-		slideTitle={currentBeat?.title ?? ''}
-		subtitle={currentBeat?.subtitle ?? ''}
-		caption={currentBeat?.caption ?? ''}
-		{altitude}
-		{speed}
-		{coverageKm2}
-		{detections}
-		{showTelemetry}
-	/>
+		<SensorReveal {sensors} />
+		<DetectionCards detections={detectionCards} />
 
-	<SensorReveal {sensors} />
-	<DetectionCards detections={detectionCards} />
-	<EndCard
-		visible={showEndCard}
-		kicker="DRONEATLAS"
-		tagline={'Making drone data<br />explorable.'}
-		stats={finaleStats}
-	/>
-
-	{#if timeline && beats.length > 0 && slideStarted}
-		<SlideNav
-			slides={beats}
-			current={slideIndex}
-			onJump={jumpToSlide}
-			onPrev={() => timeline?.prevSlide()}
-			onNext={() => timeline?.nextSlide()}
-		/>
-		<SlideEndHint visible={slideEnd} atLastSlide={isLastSlide} />
+		{#if timeline && beats.length > 0 && slideStarted}
 		<PresenterNotes
 			visible={showNotes}
 			title={currentBeat?.title ?? ''}
@@ -456,26 +403,60 @@
 			slideNum={slideIndex + 1}
 			totalSlides={beats.length}
 		/>
-	{/if}
+		{/if}
 
-	{#if !slideStarted}
-		<button class="start-btn" on:click|stopPropagation={startPresentation}>
-			<span class="play-icon">▶</span>
-			<span>Start presentation</span>
-			<span class="hint">→ next slide · SPACE pause · N notes · R restart</span>
-		</button>
-	{/if}
+		{#if !slideStarted}
+			<button class="start-btn" on:click|stopPropagation={startPresentation}>
+				<span class="play-icon">▶</span>
+				<span>Start presentation</span>
+				<span class="hint">→ next slide · SPACE pause · N notes · R restart</span>
+			</button>
+		{/if}
 
-	<!-- Vignette overlay -->
-	<div class="vignette pointer-events-none absolute inset-0 z-10"></div>
+		<!-- Vignette overlay -->
+		<div class="vignette pointer-events-none absolute inset-0 z-10"></div>
+	</div>
 </div>
 
 <style>
 	:global(body) {
 		background: #0a0e15;
 	}
-	.demo-root {
+	.demo-shell {
 		background: #0a0e15;
+		display: grid;
+		place-items: center;
+	}
+	.demo-shell::before {
+		content: '';
+		position: absolute;
+		inset: 0;
+		background:
+			radial-gradient(circle at 50% 30%, rgba(57, 210, 255, 0.08), transparent 42%),
+			#050810;
+	}
+	.demo-root {
+		width: min(100vw, calc(100vh * 16 / 9));
+		height: min(100vh, calc(100vw * 9 / 16));
+		left: 50%;
+		top: 50%;
+		transform: translate(-50%, -50%);
+		background: #0a0e15;
+		overflow: hidden;
+		box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.06);
+	}
+	.slide-caption div {
+		max-width: 58%;
+		padding: 10px 20px;
+		border-radius: 999px;
+		background: rgba(5, 9, 16, 0.58);
+		border: 1px solid rgba(255, 255, 255, 0.1);
+		backdrop-filter: blur(12px);
+		color: rgba(255, 255, 255, 0.8);
+		font-family: 'Inter', system-ui, sans-serif;
+		font-size: clamp(13px, 1.35vw, 18px);
+		line-height: 1.3;
+		text-align: center;
 	}
 	.start-btn {
 		position: absolute;

@@ -8,8 +8,155 @@ import type { RasterLayer } from '$lib/types';
 // Replace with R2 URLs (e.g. https://pub-xxx.r2.dev/cogs/projects/...) for production.
 const mockBase = `${base}/mock`;
 
-// Sample project locations for demonstration
+const weespSource =
+  'Waagen, J. (2023). 4DRL Report Series 4 - In search of a castle. DOI: 10.21942/uva.23375486.v3.';
+
+// Project locations for the main demo. The Weesp entry is the paper-backed case;
+// the other entries remain available as secondary examples.
 const sampleLocations: ProjectLocation[] = [
+  {
+    id: 'weesp-castle',
+    name: "'t Huijs ten Bosch, Weesp",
+    subtitle: 'Paper demo: in search of a castle',
+    caseStudy: '4D Research Lab multi-sensor UAS case study',
+    period: 'Field campaigns: February, June, and September 2022',
+    description:
+      'A medieval castle near Weesp, built after 1220 and destroyed in 1672, is no longer visible as a structure. The demo follows the paper workflow: combine drone sensor layers, train DroneML from expert labels, and inspect a probability map for likely wall, moat, and debris traces.',
+    citation: weespSource,
+    center: [5.0456, 52.3077],
+    zoom: 16.9,
+    bearing: -24,
+    pitch: 58,
+    facts: [
+      { label: 'Site', value: 'medieval castle' },
+      { label: 'Destroyed', value: '1672' },
+      { label: 'LiDAR', value: '122M points' },
+      { label: 'Anomalies', value: '55' }
+    ],
+    findings: [
+      'probable castle wall traces',
+      'moat and ditch edges',
+      'possible wall debris',
+      'post-depositional disturbance'
+    ],
+    workflow: [
+      {
+        title: '1. Acquire',
+        description: 'Optical, thermal, multispectral, and LiDAR drone observations are collected across the site.'
+      },
+      {
+        title: '2. Align',
+        description: 'Sensor products become georeferenced layers that can be inspected together.'
+      },
+      {
+        title: '3. Label',
+        description: 'The archaeologist marks positive and negative examples of relevant anomalies.'
+      },
+      {
+        title: '4. Learn',
+        description: 'DroneML combines UNet-derived image features with a RandomForest classifier.'
+      },
+      {
+        title: '5. Interpret',
+        description: 'The probability map highlights where expert archaeological attention should focus.'
+      }
+    ],
+    layers: [
+      {
+        id: 'weesp-optical',
+        name: 'Optical cropmarks',
+        type: 'rgb',
+        sourceUrl: `${mockBase}/weesp/optical_cropmarks.tif`,
+        colormap: 'terrain',
+        opacity: 0.58,
+        rescale: [0, 255],
+        defaultEnabled: true,
+        description: 'Visible-light crop and soil-mark contrast around the suspected castle footprint.',
+        evidence: 'Subtle rectangular traces and texture shifts that are difficult to read in isolation.',
+        layerMetadata: {
+          indicator: 'Optical contrast',
+          study: "'t Huijs ten Bosch, Weesp",
+          definition: 'Visible cropmark and soil-mark proxy layer',
+          source: weespSource,
+          hyperlink: 'https://doi.org/10.21942/uva.23375486.v3'
+        }
+      },
+      {
+        id: 'weesp-thermal',
+        name: 'Thermal infrared contrast',
+        type: 'infrared',
+        sourceUrl: `${mockBase}/weesp/thermal_contrast.tif`,
+        colormap: 'inferno',
+        opacity: 0.62,
+        rescale: [12, 26],
+        description: 'Thermal differences that can reveal buried material through heat-retention patterns.',
+        evidence: 'Warmer linear signals around possible wall and debris zones.',
+        layerMetadata: {
+          indicator: 'Thermal contrast',
+          study: "'t Huijs ten Bosch, Weesp",
+          definition: 'Thermal infrared proxy layer',
+          source: weespSource,
+          hyperlink: 'https://doi.org/10.21942/uva.23375486.v3'
+        }
+      },
+      {
+        id: 'weesp-ndvi',
+        name: 'Multispectral NDVI',
+        type: 'multispectral',
+        sourceUrl: `${mockBase}/weesp/ndvi.tif`,
+        colormap: 'viridis',
+        opacity: 0.58,
+        rescale: [20, 90],
+        description: 'Vegetation response layer for stress or growth changes above buried structures.',
+        evidence: 'Lower vegetation response on wall traces and different response over possible moat fill.',
+        layerMetadata: {
+          indicator: 'NDVI proxy',
+          study: "'t Huijs ten Bosch, Weesp",
+          definition: 'Multispectral vegetation-index proxy layer',
+          source: weespSource,
+          hyperlink: 'https://doi.org/10.21942/uva.23375486.v3'
+        }
+      },
+      {
+        id: 'weesp-lidar',
+        name: 'LiDAR DTM micro-relief',
+        type: 'lidar',
+        sourceUrl: `${mockBase}/weesp/lidar_dtm.tif`,
+        colormap: 'terrain',
+        opacity: 0.66,
+        rescale: [0, 3],
+        defaultEnabled: true,
+        description: 'Fine-scale terrain variation representing residual relief and ditch morphology.',
+        evidence: 'Low-relief rectangular and moat-like forms after the visible castle has disappeared.',
+        layerMetadata: {
+          indicator: 'Elevation proxy',
+          study: "'t Huijs ten Bosch, Weesp",
+          definition: 'LiDAR DTM micro-relief proxy layer',
+          source: weespSource,
+          hyperlink: 'https://doi.org/10.21942/uva.23375486.v3'
+        }
+      },
+      {
+        id: 'weesp-ml',
+        name: 'DroneML probability',
+        type: 'ml-prediction',
+        sourceUrl: `${mockBase}/weesp/droneml_probability.tif`,
+        colormap: 'plasma',
+        opacity: 0.74,
+        rescale: [0, 100],
+        defaultEnabled: true,
+        description: 'Per-pixel probability surface from the DroneML interpretation workflow.',
+        evidence: 'Highlights likely castle walls, moat edges, and debris concentrations for expert review.',
+        layerMetadata: {
+          indicator: 'Detection probability',
+          study: "'t Huijs ten Bosch, Weesp",
+          definition: 'DroneML probability proxy layer',
+          source: weespSource,
+          hyperlink: 'https://doi.org/10.21942/uva.23375486.v3'
+        }
+      }
+    ]
+  },
 	{
 		id: 'veldhoven',
 		name: 'Veldhoven',
@@ -195,7 +342,9 @@ export function toggleProjectLayer(layerDef: ProjectLayerDef, enable: boolean): 
 			opacity: layerDef.opacity ?? 0.8,
 			isLoading: false,
 			error: null,
-			colormap: layerDef.colormap ?? 'viridis'
+			colormap: layerDef.colormap ?? 'viridis',
+			rescale: layerDef.rescale,
+			layerMetadata: layerDef.layerMetadata
 		};
 		rasterLayers.update((layers) => {
 			layers.set(rasterStoreId, rasterLayer);

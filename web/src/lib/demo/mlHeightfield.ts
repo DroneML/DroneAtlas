@@ -71,8 +71,8 @@ export async function loadMlHeightfield(url: string, target = 128): Promise<Heig
 	};
 }
 
-// Synthetic fallback if the tif cannot be loaded. Produces three gaussian
-// "foundation" peaks over a small bounds box centred on Veldhoven.
+// Synthetic presentation surface. Produces a castle-like probability field with
+// rectangular wall traces, a moat-like ring, and debris hotspots.
 export function syntheticHeightfield(
 	center: [number, number],
 	sizeDeg = 0.003,
@@ -85,26 +85,62 @@ export function syntheticHeightfield(
 		clng + sizeDeg,
 		clat + sizeDeg
 	];
-	const peaks = [
-		{ x: 0.35, y: 0.42, s: 0.08, a: 0.9 },
-		{ x: 0.6, y: 0.55, s: 0.1, a: 0.75 },
-		{ x: 0.48, y: 0.3, s: 0.06, a: 0.6 }
-	];
 	const values = new Float32Array(grid * grid);
 	for (let y = 0; y < grid; y++) {
 		for (let x = 0; x < grid; x++) {
 			const u = x / (grid - 1);
 			const v = y / (grid - 1);
-			let sum = 0;
-			for (const p of peaks) {
-				const du = u - p.x;
-				const dv = v - p.y;
-				sum += p.a * Math.exp(-(du * du + dv * dv) / (2 * p.s * p.s));
-			}
-			values[y * grid + x] = Math.min(1, sum);
+			const keep = Math.max(0, 1 - Math.hypot(u - 0.5, v - 0.5) / 0.72);
+			const outerWall = rectTrace(u, v, 0.24, 0.25, 0.76, 0.72, 0.018) * 0.82;
+			const tower = rectTrace(u, v, 0.24, 0.22, 0.43, 0.42, 0.018) * 0.95;
+			const moat = rectTrace(u, v, 0.16, 0.16, 0.84, 0.82, 0.038) * 0.38;
+			const ditch = lineTrace(u, v, 0.58, 0.24, 0.78, 0.7, 0.02) * 0.5;
+			const debris = gaussian(u, v, 0.39, 0.57, 0.075) * 0.65;
+			const score = (outerWall + tower + moat + ditch + debris) * keep;
+			values[y * grid + x] = Math.min(1, score);
 		}
 	}
 	return { width: grid, height: grid, values, bounds, minValue: 0, maxValue: 1 };
+}
+
+function gaussian(u: number, v: number, cx: number, cy: number, spread: number): number {
+	const du = u - cx;
+	const dv = v - cy;
+	return Math.exp(-(du * du + dv * dv) / (2 * spread * spread));
+}
+
+function rectTrace(
+	u: number,
+	v: number,
+	left: number,
+	top: number,
+	right: number,
+	bottom: number,
+	width: number
+): number {
+	const onVertical = v >= top && v <= bottom ? Math.min(Math.abs(u - left), Math.abs(u - right)) : 1;
+	const onHorizontal = u >= left && u <= right ? Math.min(Math.abs(v - top), Math.abs(v - bottom)) : 1;
+	const d = Math.min(onVertical, onHorizontal);
+	return Math.exp(-(d * d) / (2 * width * width));
+}
+
+function lineTrace(
+	u: number,
+	v: number,
+	ax: number,
+	ay: number,
+	bx: number,
+	by: number,
+	width: number
+): number {
+	const dx = bx - ax;
+	const dy = by - ay;
+	const len2 = dx * dx + dy * dy;
+	const k = Math.max(0, Math.min(1, ((u - ax) * dx + (v - ay) * dy) / len2));
+	const px = ax + k * dx;
+	const py = ay + k * dy;
+	const d = Math.hypot(u - px, v - py);
+	return Math.exp(-(d * d) / (2 * width * width));
 }
 
 // Plasma-style colour ramp: dark purple → magenta → orange → yellow.
