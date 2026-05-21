@@ -4,6 +4,7 @@
 	import 'maplibre-gl/dist/maplibre-gl.css';
 	import type { Map as MaplibreMap } from 'maplibre-gl';
 	import type { MapStyle } from '../MapStyles';
+	import { getStyleById } from '../MapStyles';
 	import { selectedMapStyle } from '$lib/stores/mapStyle.store';
 	import {
 		initializeMap,
@@ -59,7 +60,7 @@
 	onMount(() => {
 		if (mapContainer && !map) {
 			// Get the initial style from the store
-			const initialStyle = $selectedMapStyle;
+			const initialStyle = initialStyleId ? getStyleById(initialStyleId) : $selectedMapStyle;
 
 			// Initialize the map
 			const initializedMap = initializeMap(mapContainer, initialStyle, initialCenter, initialZoom);

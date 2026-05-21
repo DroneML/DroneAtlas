@@ -5,6 +5,27 @@ import { toastStore } from '$lib/stores/toast.store';
 import { loadAndProcessGeoTIFF } from '$lib/components/Map/utils/geoTiffProcessor';
 import { getRasterMetadataByUrl } from '$lib/services/rasterMetadata';
 
+function getProcessingOptions(layer: RasterLayer, debugMode: boolean) {
+  const isProjectLayer = layer.id.startsWith('project-');
+  let noDataThreshold: number | undefined;
+  if (isProjectLayer) {
+    if (layer.id.includes('thermal')) noDataThreshold = 0.5;
+    else if (layer.id.includes('ndvi')) noDataThreshold = 0.62;
+    else if (layer.id.includes('ml')) noDataThreshold = 0.28;
+    else if (layer.id.includes('optical')) noDataThreshold = 0.55;
+    else if (layer.id.includes('lidar')) noDataThreshold = 0.5;
+    else noDataThreshold = 0.42;
+  }
+
+  return {
+    debugMode,
+    colormap: layer.colormap,
+    rescale: layer.rescale,
+    noDataThreshold,
+    adaptiveAlpha: isProjectLayer ? true : undefined
+  };
+}
+
 // Default rescale values no longer forced; processing will auto-detect from data
 
 // Helper to create the initial raster layers map
@@ -92,11 +113,7 @@ export async function addRasterLayerFromUrl(url: string): Promise<void> {
 
   try {
     const debugMode = get(rasterDebugMode);
-    const { dataUrl, metadata, bounds, rasterData, width, height, rescaleUsed } = await loadAndProcessGeoTIFF(url, {
-      debugMode: debugMode,
-      colormap: tempLayer.colormap,
-      rescale: tempLayer.rescale
-    });
+    const { dataUrl, metadata, bounds, rasterData, width, height, rescaleUsed } = await loadAndProcessGeoTIFF(url, getProcessingOptions(tempLayer, debugMode));
     const finalLayer: RasterLayer = {
       ...tempLayer,
       name: url.substring(url.lastIndexOf('/') + 1),
@@ -153,11 +170,7 @@ export async function fetchAndSetLayerBounds(layerId: string): Promise<void> {
 
   try {
     const debugMode = get(rasterDebugMode);
-    const { dataUrl, metadata, bounds, rasterData, width, height, rescaleUsed } = await loadAndProcessGeoTIFF(layer.sourceUrl, {
-      debugMode: debugMode,
-      colormap: layer.colormap,
-      rescale: layer.rescale
-    });
+    const { dataUrl, metadata, bounds, rasterData, width, height, rescaleUsed } = await loadAndProcessGeoTIFF(layer.sourceUrl, getProcessingOptions(layer, debugMode));
     rasterLayers.update((currentLayers) => {
       const layerToUpdate = currentLayers.get(layerId);
       if (layerToUpdate) {

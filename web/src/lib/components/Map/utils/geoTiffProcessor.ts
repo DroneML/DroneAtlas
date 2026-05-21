@@ -28,6 +28,7 @@ export interface ProcessingOptions {
   rescale?: [number, number]; // Min/max values for rescaling
   noDataValue?: number; // Value to treat as transparent
   noDataThreshold?: number; // Threshold for treating values as no-data (e.g., 0.01)
+  adaptiveAlpha?: boolean; // If true, fade lower normalized values instead of rendering all pixels opaque
   debugMode?: boolean; // If true, show black pixels for all data locations
 }
 
@@ -362,6 +363,48 @@ function getColor(value: number, rescale: [number, number], colormapName = 'viri
   ];
 }
 
+function getNormalizedValue(value: number, rescale: [number, number]): number {
+  const [minV, maxV] = rescale;
+  const denom = maxV - minV === 0 ? 1 : maxV - minV;
+  return Math.min(1, Math.max(0, (value - minV) / denom));
+}
+
+function shouldRenderAsTransparent(value: number, rescale: [number, number], options: ProcessingOptions): boolean {
+  if (isNaN(value) || value < -1e10 || value > 1e10 || value === -9999 || value === -999) {
+    return true;
+  }
+
+  if (typeof options.noDataValue === 'number' && value === options.noDataValue) {
+    return true;
+  }
+
+  if (typeof options.noDataThreshold === 'number') {
+    const normalized = getNormalizedValue(value, rescale);
+    return normalized <= options.noDataThreshold;
+  }
+
+  return false;
+}
+
+function getPixelAlpha(value: number, rescale: [number, number], options: ProcessingOptions): number {
+  if (!options.adaptiveAlpha) return 255;
+  const normalized = getNormalizedValue(value, rescale);
+  return Math.round(36 + normalized * 154);
+}
+
+function getDisplayColor(value: number, rescale: [number, number], options: ProcessingOptions): [number, number, number] {
+  const [r, g, b] = getColor(value, rescale, options.colormap);
+  if (!options.adaptiveAlpha) return [r, g, b];
+
+  // Demo rasters sit on high-detail satellite imagery; lift dark colormap lows so
+  // they read as spectral signal rather than an opaque black footprint.
+  return [
+    Math.min(255, Math.round(r + (255 - r) * 0.24)),
+    Math.min(255, Math.round(g + (255 - g) * 0.2)),
+    Math.min(255, Math.round(b + (255 - b) * 0.26))
+  ];
+}
+
 /**
  * Reproject EPSG:4326 (geographic) raster data to EPSG:3857 (Web Mercator)
  * This fixes vertical stretching when displaying geographic rasters on Web Mercator basemaps
@@ -468,7 +511,7 @@ async function processEPSG4326ToMercator(
       rawDataCopy[outIndex] = value;
 
       // Check for no-data
-      if (isNaN(value) || value < -1e10 || value > 1e10 || value === -9999 || value === -999) {
+      if (shouldRenderAsTransparent(value, rescale, options)) {
         imageData.data[outIndex * 4] = 0;
         imageData.data[outIndex * 4 + 1] = 0;
         imageData.data[outIndex * 4 + 2] = 0;
@@ -481,11 +524,11 @@ async function processEPSG4326ToMercator(
           imageData.data[outIndex * 4 + 2] = 0;
           imageData.data[outIndex * 4 + 3] = 255;
         } else {
-          const [r, g, b] = getColor(value, rescale, options.colormap);
+          const [r, g, b] = getDisplayColor(value, rescale, options);
           imageData.data[outIndex * 4] = r;
           imageData.data[outIndex * 4 + 1] = g;
           imageData.data[outIndex * 4 + 2] = b;
-          imageData.data[outIndex * 4 + 3] = 255;
+          imageData.data[outIndex * 4 + 3] = getPixelAlpha(value, rescale, options);
         }
       }
     }
@@ -598,8 +641,6 @@ export async function processGeoTIFF(
 
   // Use provided rescale values or default to the detected range
   const rescale: [number, number] = options.rescale || [minValue, maxValue];
-  const noDataThreshold = options.noDataThreshold || 0.01;
-
   // Apply colormap to raster data with better no-data handling
   // IMPORTANT: Use rawDataCopy for consistency with what we store
   for (let y = 0; y < height; y++) {
@@ -614,7 +655,7 @@ export async function processGeoTIFF(
       // Check for no-data values
       // Only NaN and extreme values are considered no-data
       // 0 is a valid value (0% prevalence) and should be colored
-      if (isNaN(value) || value < -1e10 || value > 1e10) {
+      if (shouldRenderAsTransparent(value, rescale, options)) {
         // Transparent for no-data values
         imageData.data[canvasIndex * 4] = 0;
         imageData.data[canvasIndex * 4 + 1] = 0;
@@ -629,11 +670,11 @@ export async function processGeoTIFF(
           imageData.data[canvasIndex * 4 + 3] = 255; // Alpha = 255 (opaque)
         } else {
           // Apply viridis colormap (including for 0 values)
-          const [r, g, b] = getColor(value, rescale, options.colormap);
+          const [r, g, b] = getDisplayColor(value, rescale, options);
           imageData.data[canvasIndex * 4] = r;
           imageData.data[canvasIndex * 4 + 1] = g;
           imageData.data[canvasIndex * 4 + 2] = b;
-          imageData.data[canvasIndex * 4 + 3] = 255; // Alpha
+          imageData.data[canvasIndex * 4 + 3] = getPixelAlpha(value, rescale, options);
         }
       }
     }

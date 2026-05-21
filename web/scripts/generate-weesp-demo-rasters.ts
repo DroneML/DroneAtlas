@@ -4,10 +4,12 @@ import { writeArrayBuffer } from 'geotiff';
 
 const width = 256;
 const height = 256;
-const west = 5.0421;
-const south = 52.3042;
-const east = 5.0491;
-const north = 52.3112;
+// Approximate castle-field footprint near Gooilandseweg 7, Weesp.
+// The rasters are synthetic, but their map placement should match the paper site.
+const west = 5.07625;
+const south = 52.29195;
+const east = 5.07895;
+const north = 52.2936;
 const outputDir = join(process.cwd(), 'static', 'mock', 'weesp');
 
 mkdirSync(outputDir, { recursive: true });

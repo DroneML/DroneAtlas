@@ -1,8 +1,11 @@
-<script>
+<script lang="ts">
 	import Map from '$lib/components/Map/Map.svelte';
 </script>
 
-<!-- Fix the height to ensure map is properly sized -->
-<div class=" -mt-[80px]">
-	<Map initialCenter={[5.5, 52.0]} initialZoom={7} />
+<svelte:head>
+	<title>DroneAtlas - Spatial Intelligence</title>
+</svelte:head>
+
+<div class="relative h-dvh w-dvw overflow-hidden bg-[#05080d]">
+	<Map initialCenter={[5.5, 52.0]} initialZoom={7} initialStyleId="osm-default" />
 </div>

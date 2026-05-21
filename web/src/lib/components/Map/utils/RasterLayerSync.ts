@@ -145,14 +145,24 @@ export function syncRasterLayers(
 
           // Add layer if source exists and layer doesn't
           if (currentMap?.getSource(sourceId) && !currentMap?.getLayer(layerId)) {
+            const isProjectLayer = layerId.startsWith('project-');
+            const paint: any = {
+              'raster-opacity': layer.opacity,
+              'raster-resampling': 'nearest'
+            };
+
+            if (isProjectLayer) {
+              paint['raster-brightness-min'] = 0.18;
+              paint['raster-brightness-max'] = 1;
+              paint['raster-contrast'] = 0.28;
+              paint['raster-saturation'] = 0.45;
+            }
+
             currentMap?.addLayer({
               id: layerId,
               type: 'raster', // Still use raster layer type for rendering controls like opacity
               source: sourceId,
-              paint: {
-                'raster-opacity': layer.opacity, // Set initial opacity
-                'raster-resampling': 'nearest' // Use nearest neighbor resampling for sharp pixels
-              },
+              paint,
               layout: {
                 visibility: 'visible' // Add as visible
               }
@@ -167,7 +177,6 @@ export function syncRasterLayers(
 
             // Optionally fit bounds only if specific bounds were used
             // Skip for project layers - they use fly-to from the locations sidebar
-            const isProjectLayer = layerId.startsWith('project-');
             const isGlobalBounds =
               layer.bounds[0] === -180 &&
               layer.bounds[1] === -90 &&

@@ -1,24 +1,19 @@
 <script lang="ts">
-	import { createEventDispatcher } from 'svelte';
+	import { createEventDispatcher, onMount } from 'svelte';
 	import type { Map as MaplibreMap } from 'maplibre-gl';
 	import type { ProjectLayerDef } from '$lib/types';
 	import {
 		projectLocations,
-		selectedLocationId,
 		selectedLocation,
-		enabledProjectLayers,
 		selectLocation,
 		toggleProjectLayer,
-		updateProjectLayerOpacity,
-		getLayerTypeColor
+		updateProjectLayerOpacity
 	} from '$lib/stores/projects.store';
-	import { rasterLayers, updateAllRasterLayersOpacity } from '$lib/stores/raster.store';
-	import { getGradientStyle, getLegendInfo, formatTickValue, computeTicks } from '../utils/colormapDefinitions';
+	import { updateAllRasterLayersOpacity } from '$lib/stores/raster.store';
 	import {
 		loadStoredSettings,
 		saveSettingsToStorage
 	} from '$lib/stores/visualizationSettings/localStorage';
-	import { onMount } from 'svelte';
 	import MaterialSymbolsSettingsOutlineRounded from '~icons/material-symbols/settings-outline-rounded';
 
 	export let map: MaplibreMap | null = null;
@@ -28,10 +23,23 @@
 	let showSettingsModal = false;
 	let showRasterDataOverlayLocal = false;
 
-	// Track per-layer opacity locally for slider responsiveness
-	let layerOpacities: Record<string, number> = {};
-
 	const dispatch = createEventDispatcher();
+
+	const layerColors: Record<ProjectLayerDef['type'], string> = {
+		rgb: '#62a7ff',
+		infrared: '#ff8a45',
+		multispectral: '#67e985',
+		lidar: '#ffd166',
+		atmospheric: '#51d6ff',
+		'ml-prediction': '#c084fc'
+	};
+
+	const weespShowcaseLayers = new Set(['weesp-thermal', 'weesp-ndvi', 'weesp-ml']);
+	const weespShowcaseOpacity: Record<string, number> = {
+		'weesp-thermal': 0.28,
+		'weesp-ndvi': 0.26,
+		'weesp-ml': 0.42
+	};
 
 	onMount(() => {
 		const storedSettings = loadStoredSettings();
@@ -42,20 +50,18 @@
 	});
 
 	function handleLocationClick(locationId: string) {
-		const locations = $projectLocations;
-		const location = locations.find((l) => l.id === locationId);
+		const location = $projectLocations.find((item) => item.id === locationId);
 		if (!location) return;
 
 		selectLocation(locationId);
 
-		// Initialize opacity map from layer defaults
-		layerOpacities = {};
 		for (const layer of location.layers) {
-			layerOpacities[layer.id] = (layer.opacity ?? 0.8) * 100;
-		}
-
-		for (const layer of location.layers) {
-			if (layer.defaultEnabled) toggleProjectLayer(layer, true);
+			const showcaseEnabled = location.id === 'weesp-castle' && weespShowcaseLayers.has(layer.id);
+			const shouldEnable = location.id === 'weesp-castle' ? showcaseEnabled : layer.defaultEnabled;
+			if (shouldEnable) {
+				toggleProjectLayer(layer, true);
+				updateProjectLayerOpacity(layer.id, weespShowcaseOpacity[layer.id] ?? (layer.opacity ?? 0.48));
+			}
 		}
 
 		if (map) {
@@ -73,7 +79,6 @@
 
 	function handleBackClick() {
 		selectLocation(null);
-		layerOpacities = {};
 
 		if (map) {
 			const duration = 1500;
@@ -88,151 +93,92 @@
 		}
 	}
 
-	function handleLayerToggle(layerDef: ProjectLayerDef, checked: boolean) {
-		toggleProjectLayer(layerDef, checked);
-		if (checked && layerOpacities[layerDef.id] === undefined) {
-			layerOpacities[layerDef.id] = (layerDef.opacity ?? 0.8) * 100;
-		}
-	}
-
-	function handleOpacityInput(layerDef: ProjectLayerDef, value: number) {
-		layerOpacities[layerDef.id] = value;
-		updateProjectLayerOpacity(layerDef.id, value / 100);
-	}
-
-	function isLayerEnabled(layerId: string, enabled: Set<string>): boolean {
-		return enabled.has(layerId);
-	}
-
-	function getOpacity(layerId: string, defaultOpacity: number): number {
-		return layerOpacities[layerId] ?? defaultOpacity * 100;
-	}
-
 	function formatLayerType(type: ProjectLayerDef['type']): string {
 		return type.replace('-', ' ');
 	}
 
-	// Count enabled layers for the 3D stack preview
-	function getEnabledLayers(
-		location: { layers: ProjectLayerDef[] } | null,
-		enabled: Set<string>
-	): ProjectLayerDef[] {
-		if (!location) return [];
-		return location.layers.filter((l) => enabled.has(l.id));
+	function getLayerColor(type: ProjectLayerDef['type']): string {
+		return layerColors[type] ?? '#62a7ff';
 	}
-
-	// Get raster store data for a project layer (for legend min/max)
-	function getRasterData(layerId: string): { min: number; max: number } {
-		const raster = $rasterLayers.get(`project-${layerId}`);
-		if (raster?.rescale) {
-			return { min: raster.rescale[0], max: raster.rescale[1] };
-		}
-		return { min: 0, max: 1 };
-	}
-
-	// Colors for the 3D stack visualization
-	const stackColors: Record<string, string> = {
-		rgb: '#6366f1',
-		infrared: '#ef4444',
-		multispectral: '#22c55e',
-		lidar: '#eab308',
-		atmospheric: '#3b82f6',
-		'ml-prediction': '#a855f7'
-	};
 </script>
 
-<div
-	id="locations-sidebar"
-	class="absolute left-4 top-20 z-10 max-h-[calc(100vh-120px)] overflow-hidden rounded-lg border border-base-300/50 bg-base-100/90 shadow-lg backdrop-blur-md transition-all duration-300"
-	class:w-10={collapsed}
-	class:w-80={!collapsed}
->
-	<!-- Header -->
-	<div class="flex items-center justify-between border-b border-base-300/50 bg-base-200/50 px-3 py-2.5">
+<div id="locations-sidebar" class="locations-panel" class:collapsed>
+	<div class="panel-topline"></div>
+	<header class="locations-header">
 		{#if !collapsed}
-			{#if $selectedLocation}
-				<button
-					class="btn btn-ghost btn-xs gap-1"
-					onclick={handleBackClick}
-				>
-					<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"></polyline></svg>
-					Back
-				</button>
-				<span class="text-sm font-semibold truncate ml-1">{$selectedLocation.name}</span>
-			{:else}
-				<h3 class="text-sm font-semibold">DroneML Paper Demo</h3>
-			{/if}
+			<div class="header-copy">
+				<div class="eyebrow">DroneATLAS</div>
+				{#if $selectedLocation}
+					<h2>{$selectedLocation.name}</h2>
+				{:else}
+					<h2>Case Locations</h2>
+				{/if}
+			</div>
 		{/if}
-		<div class="ml-auto flex items-center gap-0.5">
+		<div class="header-actions">
 			{#if !collapsed}
-				<button
-					class="btn btn-ghost btn-xs btn-square"
-					title="Settings"
-					onclick={() => (showSettingsModal = true)}
-				>
+				<button class="icon-button" type="button" title="Settings" onclick={() => (showSettingsModal = true)}>
 					<MaterialSymbolsSettingsOutlineRounded />
 				</button>
 			{/if}
 			<button
-				class="btn btn-ghost btn-xs btn-square"
-				title={collapsed ? 'Expand' : 'Collapse'}
+				class="icon-button"
+				type="button"
+				title={collapsed ? 'Expand locations' : 'Collapse locations'}
 				onclick={() => (collapsed = !collapsed)}
 			>
-				<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+				<svg viewBox="0 0 24 24" aria-hidden="true">
 					{#if collapsed}
-						<polyline points="9 18 15 12 9 6"></polyline>
+						<path d="m9 18 6-6-6-6" />
 					{:else}
-						<polyline points="15 18 9 12 15 6"></polyline>
+						<path d="m15 18-6-6 6-6" />
 					{/if}
 				</svg>
 			</button>
 		</div>
-	</div>
+	</header>
 
 	{#if !collapsed}
-		<div class="overflow-y-auto p-2" style="max-height: calc(100vh - 180px);">
+		<div class="locations-content">
 			{#if !$selectedLocation}
-				<div class="mb-2 rounded-lg border border-primary/20 bg-gradient-to-br from-primary/10 via-base-100 to-secondary/10 p-3">
-					<div class="text-[10px] font-semibold uppercase tracking-[0.2em] text-primary">Main route demo</div>
-					<div class="mt-1 text-base font-semibold leading-tight">In search of a castle</div>
-					<p class="mt-1 text-xs leading-snug text-base-content/60">
-						Open the Weesp case to follow the paper workflow: sensor layers, expert labels, DroneML probability, and 3D site interpretation.
+				<section class="mission-card">
+					<div class="mission-kicker">Primary Demo Route</div>
+					<h3>In search of a castle</h3>
+					<p>
+						Enter Weesp to reveal multisensor rasters, DroneML probability, and a live evidence dashboard.
 					</p>
-				</div>
+				</section>
 
-				<!-- Location List -->
-				<ul class="flex flex-col gap-1.5">
+				<ul class="location-list" aria-label="Project locations">
 					{#each $projectLocations as location (location.id)}
 						<li>
 							<button
 								id="location-{location.id}"
-								class="group flex w-full items-start gap-2.5 rounded-md px-2.5 py-2 text-left transition-colors hover:bg-base-200/80"
+								class="location-button"
+								class:featured={Boolean(location.caseStudy)}
+								type="button"
 								onclick={() => handleLocationClick(location.id)}
 							>
-								<div class="mt-0.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-primary/10 text-primary">
-									<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5c-1.38 0-2.5-1.12-2.5-2.5s1.12-2.5 2.5-2.5 2.5 1.12 2.5 2.5-1.12 2.5-2.5 2.5z"/></svg>
+								<div class="location-marker">
+									<svg viewBox="0 0 24 24" aria-hidden="true">
+										<path d="M12 2C8.1 2 5 5.1 5 9c0 5.2 7 13 7 13s7-7.8 7-13c0-3.9-3.1-7-7-7Zm0 9.5A2.5 2.5 0 1 1 12 6a2.5 2.5 0 0 1 0 5.5Z" />
+									</svg>
 								</div>
-								<div class="min-w-0 flex-1">
-									<div class="flex items-center gap-1.5">
-										<div class="truncate text-sm font-medium group-hover:text-primary">{location.name}</div>
-										{#if location.caseStudy}
-											<span class="badge badge-primary badge-xs shrink-0">paper</span>
-										{/if}
+								<div class="location-copy">
+									<div class="location-title-row">
+										<strong>{location.name}</strong>
+										{#if location.caseStudy}<span>paper</span>{/if}
 									</div>
 									{#if location.subtitle}
-										<div class="mt-0.5 text-xs font-medium text-base-content/60">{location.subtitle}</div>
+										<small>{location.subtitle}</small>
 									{/if}
-									<div class="mt-0.5 text-xs text-base-content/50 line-clamp-2">{location.description}</div>
-									{#if location.facts}
-										<div class="mt-1 flex flex-wrap gap-1">
-											{#each location.facts.slice(0, 2) as fact}
-												<span class="rounded bg-base-200/80 px-1.5 py-0.5 text-[10px] text-base-content/60">{fact.label}: {fact.value}</span>
-											{/each}
-										</div>
-									{/if}
-									<div class="mt-1 flex flex-wrap gap-1">
+									<p>{location.description}</p>
+									<div class="layer-dot-row" aria-label="Available layers">
 										{#each location.layers as layer (layer.id)}
-											<span class="badge badge-xs {getLayerTypeColor(layer.type)}">{formatLayerType(layer.type)}</span>
+											<span
+											title={formatLayerType(layer.type)}
+											style="background: {getLayerColor(layer.type)}"
+										></span>
 										{/each}
 									</div>
 								</div>
@@ -241,159 +187,75 @@
 					{/each}
 				</ul>
 			{:else}
-				<!-- Selected Location: 3D Stack Preview + Layer Controls -->
-				<div class="flex flex-col gap-2">
-					<div class="rounded-lg border border-primary/15 bg-base-200/35 p-3">
-						<div class="text-[10px] font-semibold uppercase tracking-[0.18em] text-primary/80">
-							{$selectedLocation.caseStudy ?? 'Project case'}
+				<button class="back-button" type="button" onclick={handleBackClick}>
+					<svg viewBox="0 0 24 24" aria-hidden="true"><path d="m15 18-6-6 6-6" /></svg>
+					Back to overview
+				</button>
+
+				<section class="case-card">
+					<div class="mission-kicker">{$selectedLocation.caseStudy ?? 'Selected location'}</div>
+					<h3>{$selectedLocation.subtitle ?? $selectedLocation.name}</h3>
+					<p>{$selectedLocation.description}</p>
+					{#if $selectedLocation.period}
+						<div class="period-pill">{$selectedLocation.period}</div>
+					{/if}
+				</section>
+
+				{#if $selectedLocation.facts}
+					<section class="fact-grid" aria-label="Location facts">
+						{#each $selectedLocation.facts as fact}
+							<div>
+								<span>{fact.label}</span>
+								<strong>{fact.value}</strong>
+							</div>
+						{/each}
+					</section>
+				{/if}
+
+				{#if $selectedLocation.workflow}
+					<section class="workflow-card">
+						<div class="section-title">DroneML Workflow</div>
+						{#each $selectedLocation.workflow as step}
+							<div class="workflow-step">
+								<strong>{step.title}</strong>
+								<span>{step.description}</span>
+							</div>
+						{/each}
+					</section>
+				{/if}
+
+				{#if $selectedLocation.findings}
+					<section class="findings-card">
+						<div class="section-title">Interpretation Targets</div>
+						<div>
+							{#each $selectedLocation.findings as finding}
+								<span>{finding}</span>
+							{/each}
 						</div>
-						<h3 class="mt-1 text-sm font-semibold leading-tight">
-							{$selectedLocation.subtitle ?? $selectedLocation.name}
-						</h3>
-						<p class="mt-1 text-xs leading-snug text-base-content/60">{$selectedLocation.description}</p>
-						{#if $selectedLocation.period}
-							<div class="mt-2 rounded bg-base-100/60 px-2 py-1 text-[10px] text-base-content/60">
-								{$selectedLocation.period}
+					</section>
+				{/if}
+
+				<section class="active-layer-card">
+					<div class="section-title">Evidence Layers</div>
+					<div class="active-layer-list">
+						{#each $selectedLocation.layers as layer (layer.id)}
+							<div>
+								<span class="layer-dot" style="background: {getLayerColor(layer.type)}"></span>
+								<span>{layer.name}</span>
 							</div>
-						{/if}
-						{#if $selectedLocation.facts}
-							<div class="mt-2 grid grid-cols-2 gap-1.5">
-								{#each $selectedLocation.facts as fact}
-									<div class="rounded border border-base-300/50 bg-base-100/55 px-2 py-1">
-										<div class="text-[9px] uppercase tracking-wide text-base-content/40">{fact.label}</div>
-										<div class="text-xs font-semibold text-base-content/80">{fact.value}</div>
-									</div>
-								{/each}
-							</div>
-						{/if}
+						{/each}
 					</div>
-
-					{#if $selectedLocation.workflow}
-						<div class="rounded-lg border border-base-300/45 bg-base-100/60 p-2">
-							<div class="mb-1 px-1 text-[10px] font-semibold uppercase tracking-[0.16em] text-base-content/45">DroneML workflow</div>
-							<div class="flex flex-col gap-1">
-								{#each $selectedLocation.workflow as step}
-									<div class="rounded bg-base-200/45 px-2 py-1.5">
-										<div class="text-[11px] font-semibold text-base-content/80">{step.title}</div>
-										<div class="text-[10px] leading-snug text-base-content/50">{step.description}</div>
-									</div>
-								{/each}
-							</div>
-						</div>
-					{/if}
-
-					{#if $selectedLocation.findings}
-						<div class="rounded-lg border border-secondary/15 bg-secondary/5 p-2">
-							<div class="mb-1 px-1 text-[10px] font-semibold uppercase tracking-[0.16em] text-secondary">Interpretation targets</div>
-							<div class="flex flex-wrap gap-1">
-								{#each $selectedLocation.findings as finding}
-									<span class="rounded-full bg-base-100/70 px-2 py-0.5 text-[10px] text-base-content/60">{finding}</span>
-								{/each}
-							</div>
-						</div>
-					{/if}
-
-					<!-- 3D Layer Stack Preview -->
-					{#if getEnabledLayers($selectedLocation, $enabledProjectLayers).length > 0}
-						<div class="layer-stack-container relative mx-auto mb-2" id="layer-stack-preview">
-							<div class="layer-stack">
-								{#each getEnabledLayers($selectedLocation, $enabledProjectLayers) as layer, i (layer.id)}
-									{@const opacity = getOpacity(layer.id, layer.opacity ?? 0.8)}
-									<div
-										class="layer-card"
-										style="
-											--index: {i};
-											--total: {getEnabledLayers($selectedLocation, $enabledProjectLayers).length};
-											--color: {stackColors[layer.type] || '#6366f1'};
-											--layer-opacity: {opacity / 100};
-										"
-									>
-										<span class="layer-card-label">{layer.name}</span>
-									</div>
-								{/each}
-							</div>
-						</div>
-					{/if}
-
-					<div class="divider my-0 text-xs">Layers</div>
-
-					{#each $selectedLocation.layers as layer (layer.id)}
-						{@const enabled = isLayerEnabled(layer.id, $enabledProjectLayers)}
-						{@const opacity = getOpacity(layer.id, layer.opacity ?? 0.8)}
-						<div
-							id="layer-control-{layer.id}"
-							class="rounded px-2 py-1 transition-colors {enabled ? 'bg-base-200/40' : ''}"
-						>
-							<!-- Toggle + name + opacity slider all in one row -->
-							<label class="flex cursor-pointer items-center gap-2">
-								<input
-									type="checkbox"
-									class="checkbox checkbox-xs checkbox-primary"
-									checked={enabled}
-									onchange={(e) => handleLayerToggle(layer, e.currentTarget.checked)}
-								/>
-								<span
-									class="h-2 w-2 shrink-0 rounded-full"
-									style="background-color: {stackColors[layer.type] || '#6366f1'}"
-								></span>
-								<span class="flex-1 text-xs" class:font-medium={enabled}>{layer.name}</span>
-							</label>
-							{#if layer.description}
-								<p class="mt-0.5 pl-6 text-[10px] leading-snug text-base-content/45">{layer.description}</p>
-							{/if}
-
-							{#if enabled}
-								{#if layer.evidence}
-									<p class="mt-1 rounded bg-base-100/55 px-2 py-1 text-[10px] leading-snug text-base-content/55">
-										Evidence: {layer.evidence}
-									</p>
-								{/if}
-								<!-- Compact opacity slider -->
-								<div class="mt-1 flex items-center gap-1.5 pl-6">
-									<input
-										type="range"
-										min="0"
-										max="100"
-										value={opacity}
-										oninput={(e) => handleOpacityInput(layer, parseInt(e.currentTarget.value))}
-										class="layer-slider flex-1"
-									/>
-									<span class="w-7 text-right text-[10px] tabular-nums text-base-content/40">{Math.round(opacity)}%</span>
-								</div>
-
-								<!-- Compact inline legend -->
-								{@const info = getLegendInfo(layer.name, `project-${layer.id}`)}
-								{@const rd = getRasterData(layer.id)}
-								{@const ticks = computeTicks(rd.min, rd.max, 3)}
-								<div class="mt-0.5 pl-6 pr-1">
-									<div
-										class="h-1.5 w-full rounded-sm"
-										style="background: {getGradientStyle(layer.colormap ?? 'viridis')}"
-									></div>
-									<div class="flex w-full justify-between">
-										{#each ticks as tick}
-											<span class="text-[8px] tabular-nums text-base-content/35">
-												{formatTickValue(tick, rd.min, rd.max, info.unit)}
-											</span>
-										{/each}
-									</div>
-								</div>
-							{/if}
-						</div>
-					{/each}
-				</div>
+				</section>
 			{/if}
 		</div>
 	{/if}
 </div>
 
-<!-- Settings Modal -->
 {#if showSettingsModal}
 	<div class="modal modal-open">
-		<div class="modal-box">
-			<h3 class="mb-4 text-lg font-bold">Visualization Settings</h3>
+		<div class="modal-box settings-modal">
+			<h3>Visualization Settings</h3>
 
-			<!-- Raster Debug Overlay -->
 			<div class="form-control mb-4 w-full">
 				<label class="label cursor-pointer">
 					<span class="label-text font-medium">Show raster data pixels (debug)</span>
@@ -407,43 +269,31 @@
 						}}
 					/>
 				</label>
-				<p class="text-base-content/60 mt-1 text-xs">
-					Renders small red dots over each pixel with data to verify alignment.
-				</p>
+				<p class="text-sm text-white/50">Renders data pixels for alignment checks.</p>
 			</div>
 
-			<!-- Global Raster Opacity Control -->
 			<div class="form-control mb-4 w-full">
 				<label for="raster-opacity" class="label">
 					<span class="label-text font-medium">Global Raster Opacity</span>
 					<span class="label-text-alt font-bold">{globalOpacity}%</span>
 				</label>
-				<div class="relative">
-					<input
-						id="raster-opacity"
-						type="range"
-						min="0"
-						max="100"
-						bind:value={globalOpacity}
-						oninput={() => {
-							updateAllRasterLayersOpacity(globalOpacity / 100);
-							saveSettingsToStorage({ globalOpacity });
-							dispatch('opacitychange', { opacity: globalOpacity });
-						}}
-						class="range range-primary"
-					/>
-					<div class="mt-1 flex w-full justify-between px-2 text-xs">
-						<span>0%</span>
-						<span>100%</span>
-					</div>
-				</div>
-				<p class="text-base-content/70 mt-2 text-sm">
-					Controls the transparency of all raster layers on the map.
-				</p>
+				<input
+					id="raster-opacity"
+					type="range"
+					min="0"
+					max="100"
+					bind:value={globalOpacity}
+					oninput={() => {
+						updateAllRasterLayersOpacity(globalOpacity / 100);
+						saveSettingsToStorage({ globalOpacity });
+						dispatch('opacitychange', { opacity: globalOpacity });
+					}}
+					class="range range-primary"
+				/>
 			</div>
 
 			<div class="modal-action">
-				<button class="btn btn-primary" onclick={() => (showSettingsModal = false)}>Done</button>
+				<button class="btn btn-primary" type="button" onclick={() => (showSettingsModal = false)}>Done</button>
 			</div>
 		</div>
 		<!-- svelte-ignore a11y_click_events_have_key_events a11y_no_static_element_interactions -->
@@ -452,77 +302,402 @@
 {/if}
 
 <style>
-	.layer-stack-container {
-		width: 180px;
-		height: 100px;
-		perspective: 600px;
-	}
-
-	.layer-stack {
-		width: 100%;
-		height: 100%;
-		position: relative;
-		transform-style: preserve-3d;
-		transform: rotateX(50deg) rotateZ(-20deg);
-	}
-
-	.layer-card {
+	.locations-panel {
 		position: absolute;
-		width: 120px;
-		height: 75px;
-		left: 50%;
-		top: 50%;
-		border-radius: 4px;
-		border: 1.5px solid var(--color);
-		background: color-mix(in srgb, var(--color) 25%, transparent);
-		opacity: var(--layer-opacity);
-		transform:
-			translate(-50%, -50%)
-			translateZ(calc(var(--index) * 22px));
-		box-shadow:
-			0 2px 8px rgba(0, 0, 0, 0.1),
-			inset 0 0 20px color-mix(in srgb, var(--color) 10%, transparent);
-		transition: opacity 0.2s ease, transform 0.3s ease;
-		display: flex;
-		align-items: flex-end;
-		justify-content: flex-start;
-		padding: 4px 6px;
+		left: 76px;
+		top: 84px;
+		z-index: 36;
+		width: 342px;
+		max-height: calc(100vh - 104px);
+		overflow: hidden;
+		color: #e8f1ff;
+		background:
+			radial-gradient(circle at 0% 0%, rgba(97, 216, 255, 0.11), transparent 36%),
+			linear-gradient(180deg, rgba(16, 23, 35, 0.88), rgba(7, 11, 18, 0.82));
+		border: 1px solid rgba(167, 213, 255, 0.14);
+		border-radius: 22px;
+		box-shadow: 0 24px 70px rgba(0, 0, 0, 0.4), inset 0 1px 0 rgba(255, 255, 255, 0.08);
+		backdrop-filter: blur(20px) saturate(140%);
+		transition: width 0.22s ease, transform 0.22s ease;
 	}
 
-	.layer-card-label {
-		font-size: 9px;
-		font-weight: 600;
-		color: var(--color);
-		text-shadow: 0 0 4px rgba(255, 255, 255, 0.8);
+	.locations-panel.collapsed {
+		width: 48px;
+	}
+
+	.panel-topline {
+		height: 2px;
+		background: linear-gradient(90deg, #61d8ff, #67e985, #ff9b54);
+		opacity: 0.78;
+	}
+
+	.locations-header {
+		display: flex;
+		align-items: center;
+		justify-content: space-between;
+		gap: 12px;
+		padding: 12px;
+		border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+	}
+
+	.header-copy {
+		min-width: 0;
+	}
+
+	.eyebrow,
+	.mission-kicker,
+	.section-title {
+		font-size: 10px;
+		font-weight: 800;
+		letter-spacing: 0.18em;
+		text-transform: uppercase;
+		color: rgba(97, 216, 255, 0.76);
+	}
+
+	h2,
+	h3,
+	p {
+		margin: 0;
+	}
+
+	h2 {
+		overflow: hidden;
+		margin-top: 3px;
+		font-size: 16px;
+		font-weight: 800;
+		text-overflow: ellipsis;
 		white-space: nowrap;
 	}
 
-	/* Thin, subtle opacity slider */
-	.layer-slider {
-		-webkit-appearance: none;
-		appearance: none;
-		height: 3px;
-		background: oklch(var(--bc) / 0.15);
-		border-radius: 2px;
-		outline: none;
+	h3 {
+		margin-top: 5px;
+		font-size: 18px;
+		line-height: 1.12;
+		font-weight: 800;
+		letter-spacing: -0.03em;
 	}
 
-	.layer-slider::-webkit-slider-thumb {
-		-webkit-appearance: none;
-		appearance: none;
-		width: 10px;
-		height: 10px;
-		border-radius: 50%;
-		background: oklch(var(--p));
-		cursor: pointer;
+	p {
+		margin-top: 8px;
+		font-size: 12px;
+		line-height: 1.45;
+		color: rgba(232, 241, 255, 0.62);
 	}
 
-	.layer-slider::-moz-range-thumb {
-		width: 10px;
-		height: 10px;
+	.header-actions {
+		display: flex;
+		gap: 6px;
+		margin-left: auto;
+	}
+
+	.icon-button,
+	.back-button {
+		border: 1px solid rgba(167, 213, 255, 0.14);
+		background: rgba(255, 255, 255, 0.05);
+		color: rgba(232, 241, 255, 0.84);
+		transition: transform 0.18s ease, border-color 0.18s ease, background 0.18s ease;
+	}
+
+	.icon-button {
+		display: grid;
+		place-items: center;
+		width: 32px;
+		height: 32px;
+		border-radius: 10px;
+	}
+
+	.icon-button:hover,
+	.back-button:hover {
+		transform: translateY(-1px);
+		border-color: rgba(97, 216, 255, 0.4);
+		background: rgba(97, 216, 255, 0.1);
+	}
+
+	svg {
+		width: 16px;
+		height: 16px;
+		fill: none;
+		stroke: currentColor;
+		stroke-width: 2;
+		stroke-linecap: round;
+		stroke-linejoin: round;
+	}
+
+	.location-marker svg {
+		fill: currentColor;
+		stroke: none;
+	}
+
+	.locations-content {
+		max-height: calc(100vh - 170px);
+		overflow-y: auto;
+		padding: 12px;
+	}
+
+	.mission-card,
+	.case-card,
+	.workflow-card,
+	.findings-card,
+	.active-layer-card {
+		border: 1px solid rgba(167, 213, 255, 0.12);
+		border-radius: 16px;
+		background: rgba(255, 255, 255, 0.045);
+		box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.05);
+	}
+
+	.mission-card,
+	.case-card {
+		padding: 14px;
+	}
+
+	.mission-card {
+		margin-bottom: 10px;
+		background:
+			radial-gradient(circle at 12% 8%, rgba(255, 155, 84, 0.16), transparent 36%),
+			linear-gradient(135deg, rgba(97, 216, 255, 0.1), rgba(255, 255, 255, 0.035));
+	}
+
+	.location-list {
+		display: grid;
+		gap: 8px;
+		margin: 0;
+		padding: 0;
+		list-style: none;
+	}
+
+	.location-button {
+		display: grid;
+		width: 100%;
+		grid-template-columns: auto minmax(0, 1fr);
+		gap: 10px;
+		padding: 11px;
+		border: 1px solid rgba(255, 255, 255, 0.075);
+		border-radius: 16px;
+		background: rgba(255, 255, 255, 0.04);
+		text-align: left;
+		color: inherit;
+		transition: transform 0.18s ease, border-color 0.18s ease, background 0.18s ease;
+	}
+
+	.location-button:hover,
+	.location-button.featured {
+		border-color: rgba(97, 216, 255, 0.3);
+		background: rgba(97, 216, 255, 0.08);
+	}
+
+	.location-button:hover {
+		transform: translateY(-1px);
+	}
+
+	.location-marker {
+		display: grid;
+		place-items: center;
+		width: 30px;
+		height: 30px;
+		border-radius: 10px;
+		background: rgba(97, 216, 255, 0.11);
+		color: #61d8ff;
+		box-shadow: 0 0 22px rgba(97, 216, 255, 0.15);
+	}
+
+	.location-marker svg {
+		width: 15px;
+		height: 15px;
+	}
+
+	.location-copy {
+		min-width: 0;
+	}
+
+	.location-title-row {
+		display: flex;
+		align-items: center;
+		gap: 8px;
+	}
+
+	.location-title-row strong {
+		overflow: hidden;
+		font-size: 13px;
+		font-weight: 800;
+		text-overflow: ellipsis;
+		white-space: nowrap;
+	}
+
+	.location-title-row span {
+		padding: 2px 6px;
+		border-radius: 999px;
+		background: rgba(255, 155, 84, 0.16);
+		font-size: 9px;
+		font-weight: 900;
+		letter-spacing: 0.12em;
+		text-transform: uppercase;
+		color: #ffc48d;
+	}
+
+	.location-copy small {
+		display: block;
+		margin-top: 2px;
+		font-size: 11px;
+		font-weight: 700;
+		color: rgba(232, 241, 255, 0.55);
+	}
+
+	.location-copy p {
+		display: -webkit-box;
+		overflow: hidden;
+		-webkit-box-orient: vertical;
+		-webkit-line-clamp: 2;
+		line-clamp: 2;
+		font-size: 11px;
+	}
+
+	.layer-dot-row {
+		display: flex;
+		gap: 5px;
+		margin-top: 8px;
+	}
+
+	.layer-dot-row span,
+	.layer-dot {
+		width: 8px;
+		height: 8px;
 		border-radius: 50%;
-		background: oklch(var(--p));
-		border: none;
-		cursor: pointer;
+		box-shadow: 0 0 12px currentColor;
+	}
+
+	.back-button {
+		display: inline-flex;
+		align-items: center;
+		gap: 6px;
+		margin-bottom: 10px;
+		padding: 7px 10px;
+		border-radius: 999px;
+		font-size: 11px;
+		font-weight: 800;
+	}
+
+	.period-pill {
+		margin-top: 10px;
+		padding: 7px 9px;
+		border-radius: 10px;
+		background: rgba(97, 216, 255, 0.08);
+		font-size: 10px;
+		font-weight: 700;
+		color: rgba(232, 241, 255, 0.62);
+	}
+
+	.fact-grid {
+		display: grid;
+		grid-template-columns: repeat(2, minmax(0, 1fr));
+		gap: 8px;
+		margin-top: 10px;
+	}
+
+	.fact-grid div {
+		padding: 10px;
+		border: 1px solid rgba(255, 255, 255, 0.08);
+		border-radius: 14px;
+		background: rgba(255, 255, 255, 0.04);
+	}
+
+	.fact-grid span,
+	.workflow-step span {
+		display: block;
+		font-size: 10px;
+		line-height: 1.35;
+		color: rgba(232, 241, 255, 0.52);
+	}
+
+	.fact-grid strong {
+		display: block;
+		margin-top: 2px;
+		font-size: 14px;
+		font-weight: 850;
+	}
+
+	.workflow-card,
+	.findings-card,
+	.active-layer-card {
+		margin-top: 10px;
+		padding: 12px;
+	}
+
+	.workflow-step {
+		margin-top: 8px;
+		padding: 8px;
+		border-radius: 12px;
+		background: rgba(255, 255, 255, 0.04);
+	}
+
+	.workflow-step strong {
+		display: block;
+		margin-bottom: 3px;
+		font-size: 11px;
+	}
+
+	.findings-card div:last-child {
+		display: flex;
+		flex-wrap: wrap;
+		gap: 6px;
+		margin-top: 9px;
+	}
+
+	.findings-card span {
+		padding: 5px 8px;
+		border: 1px solid rgba(103, 233, 133, 0.16);
+		border-radius: 999px;
+		background: rgba(103, 233, 133, 0.07);
+		font-size: 10px;
+		color: rgba(208, 255, 218, 0.76);
+	}
+
+	.active-layer-list {
+		display: grid;
+		gap: 6px;
+		margin-top: 9px;
+	}
+
+	.active-layer-list div {
+		display: flex;
+		align-items: center;
+		gap: 8px;
+		font-size: 11px;
+		font-weight: 700;
+		color: rgba(232, 241, 255, 0.7);
+	}
+
+	.settings-modal {
+		color: #e8f1ff;
+		background: #0b111c;
+		border: 1px solid rgba(167, 213, 255, 0.18);
+	}
+
+	.settings-modal h3 {
+		margin-bottom: 16px;
+		font-size: 18px;
+		font-weight: 800;
+	}
+
+	@media (max-width: 1023px) {
+		.locations-panel {
+			left: 12px;
+			top: 78px;
+			width: min(342px, calc(100vw - 72px));
+			max-height: 44vh;
+		}
+
+		.locations-panel.collapsed {
+			width: 48px;
+		}
+
+		.locations-content {
+			max-height: calc(44vh - 64px);
+		}
+	}
+
+	@media (max-width: 640px) {
+		.locations-panel:not(.collapsed) {
+			width: calc(100vw - 24px);
+		}
 	}
 </style>

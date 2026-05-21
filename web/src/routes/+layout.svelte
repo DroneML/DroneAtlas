@@ -15,6 +15,7 @@
 
 	// Check if embed parameter is present in URL
 	let isEmbedded = $derived(browser && $page.url.searchParams.get('embed') === 'true');
+	let isHomeMap = $derived($page.route.id === '/');
 </script>
 
 <GlobalToast />
@@ -25,10 +26,11 @@
 
 <div
 	class="relative grid h-dvh w-dvw {isEmbedded
+		|| isHomeMap
 		? 'grid-rows-[1fr]'
 		: 'grid-rows-[auto_auto_1fr] sm:grid-rows-[auto_1fr]'} overflow-clip"
 >
-	{#if !isEmbedded}
+	{#if !isEmbedded && !isHomeMap}
 		<Header />
 		<SideMenu />
 	{/if}

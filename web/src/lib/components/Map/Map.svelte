@@ -30,11 +30,11 @@
 	import RasterLegend from './components/RasterLegend.svelte';
 	import RasterDataOverlay from './components/RasterDataOverlay.svelte';
 	import LocationsSidebar from './components/LocationsSidebar.svelte';
+	import LocationAnalyticsPanel from './components/LocationAnalyticsPanel.svelte';
 	import HeroDrone from '$lib/demo/components/HeroDrone.svelte';
-	import { selectedLocation } from '$lib/stores/projects.store';
+	import { selectedLocation, selectLocation } from '$lib/stores/projects.store';
 	import { DroneLayer } from '$lib/demo/DroneLayer';
 	import { generateFlightPath } from '$lib/demo/path';
-	import { syntheticHeightfield } from '$lib/demo/mlHeightfield';
 	import type { ProjectLocation, RasterLayer } from '$lib/types';
 
 	// Props that can be passed to the component
@@ -58,7 +58,7 @@
 
 	// Debug overlay state
 	let showRasterDataOverlay = false; // Hide red pixels by default
-	let navigationDroneVisible = true;
+	let navigationDroneVisible = false;
 	let navigationDroneMode: 'idle' | 'transit' = 'idle';
 	let navigationDroneTimer: ReturnType<typeof setTimeout> | null = null;
 	let navigationFlightRun = 0;
@@ -82,6 +82,8 @@
 
 	// References to child components
 	let rasterLayerManager: RasterLayerManager;
+
+	$: visibleLayerCount = Array.from($rasterLayers.values()).filter((layer) => layer.isVisible).length;
 
 	// Popover state for raster clicks
 	let showPopover = false;
@@ -374,7 +376,7 @@
 		const finishFlight = () => {
 			if (run !== navigationFlightRun) return;
 			navigationDroneMode = 'idle';
-			navigationDroneVisible = target === 'overview';
+			navigationDroneVisible = false;
 			navigationDroneTimer = null;
 		};
 
@@ -389,6 +391,21 @@
 			if (navigationDroneTimer) clearTimeout(navigationDroneTimer);
 			navigationDroneTimer = setTimeout(finishFlight, settleDelay);
 		});
+	}
+
+	function handleResetView() {
+		selectLocation(null);
+		if (map) {
+			const duration = 1500;
+			handleLocationFlightStart(new CustomEvent('flightstart', { detail: { duration, target: 'overview' } }));
+			map.flyTo({
+				center: [5.5, 52.0],
+				zoom: 7,
+				bearing: 0,
+				pitch: 0,
+				duration
+			});
+		}
 	}
 
 	function ensurePaperDemoLayer(location: ProjectLocation) {
@@ -406,9 +423,7 @@
 		const layer = new DroneLayer({ path, id: paperDemoLayerId });
 		map.addLayer(layer);
 
-		const heightfield = syntheticHeightfield(location.center, 0.0035, 128);
-		layer.setFindingHeightfield(heightfield, { heightMeters: 44 });
-		layer.setVisibility({ drone: true, path: true, particles: true, finding: true });
+		layer.setVisibility({ drone: true, path: true, particles: true, finding: false });
 		layer.setProgress(0);
 		layer.setParticleIntensity(0.35);
 
@@ -646,11 +661,9 @@
 	}
 
 	$: if (map && isStyleLoaded) {
-		if ($selectedLocation?.id === 'weesp-castle') {
-			ensurePaperDemoLayer($selectedLocation);
-		} else {
-			stopPaperDemoLayer();
-		}
+		// The presentation route owns the cinematic 3D DroneLayer. The main map keeps
+		// the real raster overlays clean so they do not render as a black WebGL plane.
+		stopPaperDemoLayer();
 	}
 
 	// Function to ensure layer order after visualization changes
@@ -682,7 +695,7 @@
 	}
 </script>
 
-<div id="map-container" class="relative h-full">
+<div id="map-container" class="mission-map relative h-full overflow-hidden bg-[#05080d] text-slate-100">
 	<MapCore
 		{initialCenter}
 		{initialZoom}
@@ -690,8 +703,49 @@
 		bind:map
 		on:ready={handleMapReady}
 		on:styleChange={handleStyleChange}
-		on:click={handleMapClick}
+			on:click={handleMapClick}
 	/>
+
+	<div class="map-atmosphere pointer-events-none absolute inset-0 z-[5]"></div>
+
+	<header class="mission-topbar absolute left-0 right-0 top-0 z-50">
+		<div class="brand-lockup">
+			<div class="brand-mark"><span></span></div>
+			<div>
+				<div class="brand-name">Drone<span>ATLAS</span></div>
+				<div class="brand-subtitle">Spatial intelligence workspace</div>
+			</div>
+		</div>
+
+		<div class="mission-status">
+			<div class="status-chip live"><span></span> live raster analysis</div>
+			<div class="status-chip">{visibleLayerCount} active layers</div>
+			<div class="status-chip location-chip">
+				{$selectedLocation ? $selectedLocation.name : 'Netherlands overview'}
+			</div>
+		</div>
+
+		<button class="reset-button" type="button" onclick={handleResetView}>Reset view</button>
+	</header>
+
+	<nav class="mission-rail absolute bottom-4 left-4 top-20 z-40" aria-label="Workspace modules">
+		<div class="rail-item active" title="Map workspace">
+			<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 18 3 21V6l6-3 6 3 6-3v15l-6 3-6-3Zm0-2.8v-10m6 12.6V7.8" /></svg>
+		</div>
+		<div class="rail-item" title="Layer stack">
+			<svg viewBox="0 0 24 24" aria-hidden="true"><path d="m12 3 9 5-9 5-9-5 9-5Zm-7 9 7 4 7-4M5 16l7 4 7-4" /></svg>
+		</div>
+		<div class="rail-item" title="Signals">
+			<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 17h3l3-10 4 14 3-8h3" /></svg>
+		</div>
+		<div class="rail-item" title="Annotations">
+			<svg viewBox="0 0 24 24" aria-hidden="true"><path d="m4 20 4.5-1 10-10a2.1 2.1 0 0 0-3-3l-10 10L4 20Z" /></svg>
+		</div>
+		<div class="rail-spacer"></div>
+		<div class="rail-item muted" title="Demo mode">
+			<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3v4m0 10v4M3 12h4m10 0h4M5.6 5.6l2.8 2.8m7.2 7.2 2.8 2.8m0-12.8-2.8 2.8m-7.2 7.2-2.8 2.8" /></svg>
+		</div>
+	</nav>
 
 	<HeroDrone visible={navigationDroneVisible} mode={navigationDroneMode} zIndex={8} />
 	<div
@@ -704,8 +758,11 @@
 	{/if}
 
 	{#if map}
-		<div class="annotation-toolbar absolute bottom-6 right-4 z-50 flex flex-col items-end gap-2">
-			<div class="flex items-center gap-1 rounded-lg border border-base-300/50 bg-base-100/90 p-1 shadow-lg backdrop-blur-md">
+		<div
+			class="annotation-toolbar absolute bottom-6 right-4 z-50 flex flex-col items-end gap-2"
+			class:panelOpen={Boolean($selectedLocation)}
+		>
+			<div class="annotation-actions flex items-center gap-1 rounded-lg p-1 shadow-lg backdrop-blur-md">
 				<button
 					class="btn btn-sm"
 					class:btn-primary={annotationDrawingEnabled}
@@ -730,7 +787,7 @@
 				</button>
 			</div>
 			{#if annotationDrawingEnabled}
-				<div class="max-w-64 rounded-lg border border-primary/20 bg-base-100/90 px-3 py-2 text-xs text-base-content/65 shadow-lg backdrop-blur-md">
+				<div class="annotation-help max-w-64 rounded-lg px-3 py-2 text-xs shadow-lg backdrop-blur-md">
 					Drag on the map to sketch an annotation. Drawing mode disables map panning until turned off.
 				</div>
 			{/if}
@@ -752,6 +809,8 @@
 		}}
 	/>
 
+	<LocationAnalyticsPanel />
+
 	{#if map && isStyleLoaded}
 		<RasterLegend visible={true} />
 	{/if}
@@ -764,21 +823,21 @@
 	<!-- Hover Tooltip - follows mouse cursor -->
 	{#if debugInfo.hoverInRaster && debugInfo.hoverRasterValue !== null && debugInfo.hoverMousePos && !showPopover}
 		<div
-			class="pointer-events-none fixed z-[999] h-2 w-2 bg-red-500"
-			style="left: {debugInfo.hoverMousePos.x}px; top: {debugInfo.hoverMousePos
-				.y}px; transform: translate(-50%, -50%); border: 1px solid white;"
-		></div>
-		<div
-			class="pointer-events-none fixed z-[1000] whitespace-nowrap rounded bg-black/90 px-2 py-1 text-xs text-white"
+			class="raster-cursor-dot pointer-events-none fixed z-[999] h-2 w-2"
 			style="left: {debugInfo.hoverMousePos.x}px; top: {debugInfo.hoverMousePos
 				.y}px; transform: translate(-50%, -50%);"
+		></div>
+		<div
+			class="raster-tooltip pointer-events-none fixed z-[1000] whitespace-nowrap px-2 py-1 text-xs"
+			style="left: {debugInfo.hoverMousePos.x}px; top: {debugInfo.hoverMousePos
+				.y}px; transform: translate(10px, -115%);"
 		>
 			Value: {debugInfo.hoverRasterValue}
 		</div>
 	{/if}
 
 	{#if $isLoading}
-		<div class="alert fixed bottom-6 left-4 z-[1000] w-auto shadow-lg">
+		<div class="mission-loading fixed bottom-6 left-24 z-[1000] w-auto shadow-lg">
 			<span class="text-sm font-medium">{$loadingMessage || 'Loading...'}</span>
 		</div>
 	{/if}
@@ -794,14 +853,260 @@
 </div>
 
 <style>
-	/* Error display */
+	.map-atmosphere {
+		background:
+			radial-gradient(circle at 22% 18%, rgba(97, 216, 255, 0.13), transparent 30%),
+			radial-gradient(circle at 72% 28%, rgba(255, 155, 84, 0.12), transparent 28%),
+			linear-gradient(90deg, rgba(3, 8, 14, 0.55), transparent 22%, transparent 74%, rgba(3, 8, 14, 0.74)),
+			radial-gradient(ellipse at center, transparent 44%, rgba(3, 7, 12, 0.46) 100%);
+		mix-blend-mode: screen;
+	}
+
+	.mission-topbar {
+		display: grid;
+		grid-template-columns: auto minmax(0, 1fr) auto;
+		align-items: center;
+		gap: 18px;
+		min-height: 68px;
+		padding: 12px 16px;
+		border-bottom: 1px solid rgba(167, 213, 255, 0.12);
+		background:
+			linear-gradient(180deg, rgba(6, 10, 17, 0.9), rgba(6, 10, 17, 0.56)),
+			radial-gradient(circle at 18% 0%, rgba(97, 216, 255, 0.12), transparent 36%);
+		box-shadow: 0 18px 52px rgba(0, 0, 0, 0.38);
+		backdrop-filter: blur(18px) saturate(140%);
+	}
+
+	.brand-lockup {
+		display: flex;
+		align-items: center;
+		gap: 10px;
+		min-width: 218px;
+	}
+
+	.brand-mark {
+		display: grid;
+		place-items: center;
+		width: 36px;
+		height: 36px;
+		border: 1px solid rgba(97, 216, 255, 0.34);
+		border-radius: 12px;
+		background: rgba(97, 216, 255, 0.08);
+		box-shadow: 0 0 28px rgba(97, 216, 255, 0.18), inset 0 0 18px rgba(97, 216, 255, 0.1);
+	}
+
+	.brand-mark span {
+		width: 14px;
+		height: 14px;
+		border: 2px solid #9de9ff;
+		border-radius: 50%;
+		box-shadow: 0 0 16px #61d8ff;
+	}
+
+	.brand-name {
+		font-size: 14px;
+		font-weight: 650;
+		letter-spacing: 0.02em;
+		line-height: 1;
+	}
+
+	.brand-name span {
+		font-weight: 900;
+		color: #b9f1ff;
+	}
+
+	.brand-subtitle {
+		margin-top: 4px;
+		font-size: 10px;
+		font-weight: 700;
+		letter-spacing: 0.16em;
+		text-transform: uppercase;
+		color: rgba(232, 241, 255, 0.44);
+	}
+
+	.mission-status {
+		display: flex;
+		min-width: 0;
+		align-items: center;
+		justify-content: center;
+		gap: 8px;
+	}
+
+	.status-chip,
+	.reset-button,
+	.mission-loading,
+	.raster-tooltip {
+		border: 1px solid rgba(167, 213, 255, 0.14);
+		background: rgba(8, 13, 21, 0.72);
+		box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.07), 0 14px 30px rgba(0, 0, 0, 0.28);
+		backdrop-filter: blur(14px);
+	}
+
+	.status-chip {
+		display: inline-flex;
+		align-items: center;
+		gap: 7px;
+		min-width: 0;
+		max-width: 290px;
+		overflow: hidden;
+		padding: 7px 10px;
+		border-radius: 999px;
+		font-size: 10px;
+		font-weight: 850;
+		letter-spacing: 0.12em;
+		text-overflow: ellipsis;
+		text-transform: uppercase;
+		white-space: nowrap;
+		color: rgba(232, 241, 255, 0.72);
+	}
+
+	.status-chip.live {
+		border-color: rgba(103, 233, 133, 0.2);
+		color: rgba(204, 255, 216, 0.82);
+	}
+
+	.status-chip.live span {
+		width: 7px;
+		height: 7px;
+		border-radius: 50%;
+		background: #67e985;
+		box-shadow: 0 0 14px #67e985;
+	}
+
+	.reset-button {
+		padding: 9px 13px;
+		border-radius: 12px;
+		font-size: 11px;
+		font-weight: 850;
+		letter-spacing: 0.12em;
+		text-transform: uppercase;
+		color: rgba(232, 241, 255, 0.8);
+		transition: transform 0.18s ease, border-color 0.18s ease, background 0.18s ease;
+	}
+
+	.reset-button:hover {
+		transform: translateY(-1px);
+		border-color: rgba(97, 216, 255, 0.4);
+		background: rgba(97, 216, 255, 0.1);
+	}
+
+	.mission-rail {
+		display: flex;
+		width: 44px;
+		flex-direction: column;
+		align-items: center;
+		gap: 8px;
+		padding: 8px 0;
+		border: 1px solid rgba(167, 213, 255, 0.12);
+		border-radius: 18px;
+		background: rgba(7, 11, 18, 0.76);
+		box-shadow: 0 20px 60px rgba(0, 0, 0, 0.34), inset 0 1px 0 rgba(255, 255, 255, 0.06);
+		backdrop-filter: blur(18px);
+	}
+
+	.rail-item {
+		display: grid;
+		place-items: center;
+		width: 32px;
+		height: 32px;
+		border: 1px solid transparent;
+		border-radius: 11px;
+		color: rgba(232, 241, 255, 0.56);
+	}
+
+	.rail-item.active {
+		border-color: rgba(97, 216, 255, 0.28);
+		background: rgba(97, 216, 255, 0.1);
+		color: #aeeeff;
+		box-shadow: 0 0 22px rgba(97, 216, 255, 0.14);
+	}
+
+	.rail-item.muted {
+		color: rgba(255, 155, 84, 0.62);
+	}
+
+	.rail-item svg {
+		width: 17px;
+		height: 17px;
+		fill: none;
+		stroke: currentColor;
+		stroke-width: 2;
+		stroke-linecap: round;
+		stroke-linejoin: round;
+	}
+
+	.rail-spacer {
+		flex: 1;
+	}
+
+	.annotation-toolbar.panelOpen {
+		right: 392px;
+	}
+
+	.annotation-actions,
+	.annotation-help {
+		border: 1px solid rgba(167, 213, 255, 0.14);
+		background: rgba(8, 13, 21, 0.78);
+		color: rgba(232, 241, 255, 0.78);
+	}
+
+	.annotation-actions :global(.btn) {
+		min-height: 2rem;
+		height: 2rem;
+		border-radius: 9px;
+		border-color: rgba(167, 213, 255, 0.12);
+		background: rgba(255, 255, 255, 0.04);
+		color: rgba(232, 241, 255, 0.78);
+	}
+
+	.annotation-actions :global(.btn-primary) {
+		border-color: rgba(97, 216, 255, 0.42);
+		background: rgba(97, 216, 255, 0.18);
+		color: #e8f8ff;
+	}
+
+	.raster-cursor-dot {
+		border: 1px solid #f7fdff;
+		border-radius: 50%;
+		background: #ff9b54;
+		box-shadow: 0 0 0 4px rgba(255, 155, 84, 0.15), 0 0 18px rgba(255, 155, 84, 0.72);
+	}
+
+	.raster-tooltip {
+		border-radius: 10px;
+		color: rgba(232, 241, 255, 0.92);
+		font-weight: 750;
+	}
+
+	.mission-loading {
+		padding: 10px 14px;
+		border-radius: 14px;
+		color: rgba(232, 241, 255, 0.86);
+	}
+
+	:global(.mission-map .maplibregl-ctrl-bottom-right) {
+		display: none;
+	}
+
+	:global(.mission-map .maplibregl-canvas) {
+		filter: saturate(1.25) brightness(0.72) contrast(1.12);
+	}
+
+	:global(.mission-map .maplibregl-ctrl-scale) {
+		border-color: rgba(232, 241, 255, 0.48);
+		color: rgba(232, 241, 255, 0.74);
+		background: rgba(8, 13, 21, 0.42);
+		font-weight: 700;
+		text-shadow: none;
+	}
+
 	.error-overlay {
 		position: absolute;
 		top: 0;
 		left: 0;
 		right: 0;
 		bottom: 0;
-		background-color: rgba(255, 255, 255, 0.85);
+		background-color: rgba(3, 7, 12, 0.82);
 		display: flex;
 		justify-content: center;
 		align-items: center;
@@ -809,9 +1114,11 @@
 	}
 
 	.error-container {
-		background-color: white;
-		border-radius: 8px;
-		box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+		background: rgba(8, 13, 21, 0.92);
+		border: 1px solid rgba(255, 155, 84, 0.25);
+		border-radius: 18px;
+		box-shadow: 0 24px 70px rgba(0, 0, 0, 0.45);
+		color: #ffe6d1;
 		padding: 20px;
 		max-width: 400px;
 		text-align: center;
@@ -833,5 +1140,64 @@
 	}
 	.navigation-cinema.navigation-active {
 		opacity: 1;
+	}
+
+	@media (max-width: 1023px) {
+		.mission-topbar {
+			grid-template-columns: auto auto;
+			min-height: 64px;
+			gap: 10px;
+		}
+
+		.brand-lockup {
+			min-width: 0;
+		}
+
+		.brand-subtitle,
+		.location-chip,
+		.mission-status .status-chip:nth-child(2) {
+			display: none;
+		}
+
+		.mission-status {
+			justify-content: flex-end;
+		}
+
+		.reset-button {
+			display: none;
+		}
+
+		.mission-rail {
+			bottom: auto;
+			left: auto;
+			right: 12px;
+			top: 132px;
+		}
+
+		.annotation-toolbar,
+		.annotation-toolbar.panelOpen {
+			right: 12px;
+			bottom: calc(44vh + 28px);
+		}
+
+		.mission-loading {
+			left: 12px;
+			bottom: 12px;
+		}
+	}
+
+	@media (max-width: 640px) {
+		.mission-topbar {
+			padding: 10px 12px;
+		}
+
+		.brand-name {
+			font-size: 13px;
+		}
+
+		.status-chip.live {
+			max-width: 148px;
+			font-size: 9px;
+		}
 	}
 </style>

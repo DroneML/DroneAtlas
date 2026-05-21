@@ -23,8 +23,8 @@ const sampleLocations: ProjectLocation[] = [
     description:
       'A medieval castle near Weesp, built after 1220 and destroyed in 1672, is no longer visible as a structure. The demo follows the paper workflow: combine drone sensor layers, train DroneML from expert labels, and inspect a probability map for likely wall, moat, and debris traces.',
     citation: weespSource,
-    center: [5.0456, 52.3077],
-    zoom: 16.9,
+    center: [5.0776, 52.29278],
+    zoom: 18.1,
     bearing: -24,
     pitch: 58,
     facts: [
