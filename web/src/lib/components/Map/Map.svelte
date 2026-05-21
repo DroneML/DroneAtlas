@@ -65,6 +65,7 @@
 	let paperDemoLayer: DroneLayer | null = null;
 	let paperDemoAnimation: number | null = null;
 	let paperDemoStartedAt = 0;
+	let siteModelVisible = true;
 	const paperDemoLayerId = 'weesp-paper-survey';
 	let annotationDrawingEnabled = false;
 	let annotationIsDrawing = false;
@@ -427,7 +428,13 @@
 		const layer = new DroneLayer({ path, id: paperDemoLayerId });
 		map.addLayer(layer);
 
-		layer.setVisibility({ drone: false, path: false, particles: false, finding: false, siteModel: true });
+		layer.setVisibility({
+			drone: false,
+			path: false,
+			particles: false,
+			finding: false,
+			siteModel: siteModelVisible
+		});
 		layer.setProgress(0);
 		layer.setParticleIntensity(0);
 
@@ -459,6 +466,12 @@
 
 	function movePaperDemoLayerToTop() {
 		if (map?.getLayer(paperDemoLayerId)) map.moveLayer(paperDemoLayerId);
+	}
+
+	function handleSiteModelToggle(event: CustomEvent<{ visible: boolean }>) {
+		siteModelVisible = event.detail.visible;
+		paperDemoLayer?.setSiteModelVisible(siteModelVisible);
+		movePaperDemoLayerToTop();
 	}
 
 	function getAnnotationCollection() {
@@ -672,6 +685,7 @@
 	$: if (map && isStyleLoaded) {
 		if ($selectedLocation?.id === 'weesp-castle') {
 			ensurePaperDemoLayer($selectedLocation);
+			paperDemoLayer?.setSiteModelVisible(siteModelVisible);
 			movePaperDemoLayerToTop();
 		} else {
 			stopPaperDemoLayer();
@@ -823,7 +837,7 @@
 		}}
 	/>
 
-	<LocationAnalyticsPanel />
+	<LocationAnalyticsPanel {siteModelVisible} on:sitemodeltoggle={handleSiteModelToggle} />
 
 	{#if map && isStyleLoaded}
 		<RasterLegend visible={true} />

@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { createEventDispatcher } from 'svelte';
 	import type { ProjectLayerDef } from '$lib/types';
 	import {
 		selectedLocation,
@@ -7,6 +8,10 @@
 		updateProjectLayerOpacity
 	} from '$lib/stores/projects.store';
 	import { rasterLayers } from '$lib/stores/raster.store';
+
+	export let siteModelVisible = true;
+
+	const dispatch = createEventDispatcher<{ sitemodeltoggle: { visible: boolean } }>();
 
 	const layerColors: Record<ProjectLayerDef['type'], string> = {
 		rgb: '#62a7ff',
@@ -40,6 +45,10 @@
 		toggleProjectLayer(layer, checked);
 	}
 
+	function handleSiteModelToggle(checked: boolean) {
+		dispatch('sitemodeltoggle', { visible: checked });
+	}
+
 	function handleOpacityInput(layer: ProjectLayerDef, value: number) {
 		updateProjectLayerOpacity(layer.id, value / 100);
 	}
@@ -62,9 +71,24 @@
 		<section class="panel-card layer-card">
 			<div class="card-title">
 				<span>Layer Controls</span>
-				<small>{enabledLayers($selectedLocation.layers).length} active</small>
+				<small>{enabledLayers($selectedLocation.layers).length + (siteModelVisible ? 1 : 0)} active</small>
 			</div>
 			<div class="layer-list">
+				{#if $selectedLocation.id === 'weesp-castle'}
+					<div class="layer-row enabled reconstruction-row">
+						<label>
+							<input
+								type="checkbox"
+								checked={siteModelVisible}
+								onchange={(event) => handleSiteModelToggle(event.currentTarget.checked)}
+							/>
+							<span class="swatch reconstruction-swatch"></span>
+							<span class="layer-name">3D reconstruction</span>
+							<span class="layer-value">castle</span>
+						</label>
+						<div class="model-location-hint">Centered on the suspected tower and wall footprint.</div>
+					</div>
+				{/if}
 				{#each $selectedLocation.layers as layer (layer.id)}
 					{@const enabled = isLayerEnabled(layer.id)}
 					{@const opacity = getOpacity(layer)}
@@ -125,25 +149,6 @@
 				<path class="chart-area ml" d="M12 108 C42 100 62 90 86 72 C120 47 148 50 178 62 C208 74 222 46 252 42 C282 40 294 72 308 80 L308 118 L12 118 Z" />
 				<path class="chart-line ml-line" d="M12 108 C42 100 62 90 86 72 C120 47 148 50 178 62 C208 74 222 46 252 42 C282 40 294 72 308 80" />
 			</svg>
-		</section>
-
-		<section class="panel-card export-card">
-			<div class="card-title">
-				<span>Data Export</span>
-				<small>snapshot</small>
-			</div>
-			<div class="export-row">
-				<button type="button">Export selected</button>
-				<button type="button">Share scene</button>
-			</div>
-			<div class="confidence-chart">
-				<div class="bar orange" style="height: 76%"></div>
-				<div class="bar blue" style="height: 48%"></div>
-				<div class="bar green" style="height: 62%"></div>
-				<div class="bar violet" style="height: 91%"></div>
-				<div class="bar blue" style="height: 58%"></div>
-				<div class="bar orange" style="height: 34%"></div>
-			</div>
 		</section>
 
 		<section class="panel-card stack-card">
@@ -278,6 +283,13 @@
 		background: rgba(57, 210, 255, 0.065);
 	}
 
+	.reconstruction-row {
+		border-color: rgba(255, 45, 168, 0.34);
+		background:
+			radial-gradient(circle at 12% 50%, rgba(255, 45, 168, 0.18), transparent 34%),
+			rgba(57, 210, 255, 0.055);
+	}
+
 	.layer-row label {
 		display: grid;
 		grid-template-columns: auto auto minmax(0, 1fr) auto;
@@ -295,6 +307,21 @@
 		height: 10px;
 		border-radius: 3px;
 		box-shadow: 0 0 14px currentColor;
+	}
+
+	.reconstruction-swatch {
+		background: linear-gradient(135deg, #ff2da8, #39d2ff 55%, #fff454);
+		box-shadow:
+			0 0 14px rgba(255, 45, 168, 0.75),
+			0 0 22px rgba(57, 210, 255, 0.42);
+	}
+
+	.model-location-hint {
+		margin-top: 6px;
+		padding-left: 34px;
+		font-size: 9px;
+		line-height: 1.35;
+		color: rgba(232, 241, 255, 0.48);
 	}
 
 	.layer-name {
@@ -378,66 +405,6 @@
 
 	.ml-line {
 		stroke: #67e985;
-	}
-
-	.export-row {
-		display: grid;
-		grid-template-columns: 1fr 1fr;
-		gap: 8px;
-	}
-
-	.export-row button {
-		border: 1px solid rgba(129, 220, 255, 0.2);
-		border-radius: 10px;
-		padding: 8px 10px;
-		background: rgba(129, 220, 255, 0.08);
-		font-size: 11px;
-		font-weight: 800;
-		color: rgba(232, 241, 255, 0.84);
-		transition: background 0.18s ease, transform 0.18s ease;
-	}
-
-	.export-row button:hover {
-		background: rgba(129, 220, 255, 0.14);
-		transform: translateY(-1px);
-	}
-
-	.confidence-chart {
-		display: flex;
-		align-items: flex-end;
-		gap: 8px;
-		height: 78px;
-		margin-top: 12px;
-		padding: 8px 8px 0;
-		border-radius: 12px;
-		background: linear-gradient(180deg, rgba(255, 255, 255, 0.04), rgba(255, 255, 255, 0.015));
-	}
-
-	.bar {
-		flex: 1;
-		min-width: 0;
-		border-radius: 999px 999px 0 0;
-		box-shadow: 0 0 18px currentColor;
-	}
-
-	.orange {
-		color: #ff9b54;
-		background: #ff9b54;
-	}
-
-	.blue {
-		color: #61d8ff;
-		background: #61d8ff;
-	}
-
-	.green {
-		color: #67e985;
-		background: #67e985;
-	}
-
-	.violet {
-		color: #c084fc;
-		background: #c084fc;
 	}
 
 	.stack-stage {

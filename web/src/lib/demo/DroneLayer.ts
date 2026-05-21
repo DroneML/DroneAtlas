@@ -132,6 +132,7 @@ export class DroneLayer implements maplibregl.CustomLayerInterface {
 		this.camera.projectionMatrix = m.multiply(t);
 
 		this.renderer.resetState();
+		this.renderer.clearDepth();
 		this.renderer.render(this.scene, this.camera);
 		this.map.triggerRepaint();
 	}
