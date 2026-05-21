@@ -8,6 +8,7 @@ import { getRasterMetadataByUrl } from '$lib/services/rasterMetadata';
 function getProcessingOptions(layer: RasterLayer, debugMode: boolean) {
   const isProjectLayer = layer.id.startsWith('project-');
   let noDataThreshold: number | undefined;
+
   if (isProjectLayer) {
     if (layer.id.includes('thermal')) noDataThreshold = 0.5;
     else if (layer.id.includes('ndvi')) noDataThreshold = 0.62;

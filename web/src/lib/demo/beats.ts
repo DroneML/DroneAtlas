@@ -41,6 +41,7 @@ export function buildBeats(refs: SceneRefs): Beat[] {
 		refs.setSensorStackProgress(0);
 		refs.setSplitReveal(0);
 		droneLayer.setParticleIntensity(0);
+		droneLayer.setSiteModelVisible(false);
 	};
 
 	let offset = 0;
@@ -156,6 +157,7 @@ export function buildBeats(refs: SceneRefs): Beat[] {
 			enter: () => {
 				resetVisuals();
 				droneLayer.setVisibility({ drone: false, path: true, particles: false, finding: false });
+				droneLayer.setSiteModelVisible(true);
 				droneLayer.setProgress(1);
 				map.jumpTo({ center: path.center, zoom: 15.7, pitch: 48, bearing: 8 });
 			},
@@ -181,6 +183,7 @@ export function buildBeats(refs: SceneRefs): Beat[] {
 				resetVisuals();
 				refs.setSurveyBox(true);
 				droneLayer.setVisibility({ drone: false, path: true, particles: false, finding: false });
+				droneLayer.setSiteModelVisible(true);
 				droneLayer.setProgress(1);
 				map.jumpTo({ center: path.center, zoom: 16.0, pitch: 52, bearing: -30 });
 			},
@@ -206,6 +209,7 @@ export function buildBeats(refs: SceneRefs): Beat[] {
 				resetVisuals();
 				refs.setSurveyBox(true);
 				droneLayer.setVisibility({ drone: false, path: true, particles: false, finding: false });
+				droneLayer.setSiteModelVisible(true);
 				droneLayer.setProgress(1);
 				map.jumpTo({ center: path.center, zoom: 16.25, pitch: 44, bearing: 18 });
 			},
@@ -343,6 +347,7 @@ export function buildBeats(refs: SceneRefs): Beat[] {
 				resetVisuals();
 				refs.setSurveyBox(false);
 				droneLayer.setVisibility({ drone: true, path: true, particles: false, finding: true });
+				droneLayer.setSiteModelVisible(true);
 				droneLayer.setProgress(1);
 				const center = droneLayer.getFindingCenter() ?? path.center;
 				map.jumpTo({ center, zoom: 17.05, pitch: 66, bearing: -28 });

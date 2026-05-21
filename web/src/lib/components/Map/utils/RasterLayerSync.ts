@@ -145,17 +145,17 @@ export function syncRasterLayers(
 
           // Add layer if source exists and layer doesn't
           if (currentMap?.getSource(sourceId) && !currentMap?.getLayer(layerId)) {
-            const isProjectLayer = layerId.startsWith('project-');
             const paint: any = {
               'raster-opacity': layer.opacity,
               'raster-resampling': 'nearest'
             };
 
+            const isProjectLayer = layerId.startsWith('project-');
             if (isProjectLayer) {
-              paint['raster-brightness-min'] = 0.18;
+              paint['raster-brightness-min'] = 0.2;
               paint['raster-brightness-max'] = 1;
-              paint['raster-contrast'] = 0.28;
-              paint['raster-saturation'] = 0.45;
+              paint['raster-contrast'] = 0.22;
+              paint['raster-saturation'] = 0.7;
             }
 
             currentMap?.addLayer({

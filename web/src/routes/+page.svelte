@@ -7,5 +7,5 @@
 </svelte:head>
 
 <div class="relative h-dvh w-dvw overflow-hidden bg-[#05080d]">
-	<Map initialCenter={[5.5, 52.0]} initialZoom={7} initialStyleId="osm-default" />
+	<Map initialCenter={[5.5, 52.0]} initialZoom={7} initialStyleId="hybrid" />
 </div>

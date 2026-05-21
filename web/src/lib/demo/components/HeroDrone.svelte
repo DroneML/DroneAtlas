@@ -210,12 +210,12 @@
 			const cycle = Math.min(1, elapsed / 2.2);
 			const k = 1 - Math.pow(1 - cycle, 3);
 			const arc = Math.sin(k * Math.PI);
-			drone.position.set(2.35 - k * 3.05, -0.92 + arc * 0.72, -0.15 - arc * 0.45);
+			drone.position.set(0.15 - k * 0.45, -0.5 + arc * 0.42, -0.1 - arc * 0.35);
 			drone.scale.setScalar(0.86 + arc * 0.42);
 			drone.rotation.set(
-				-0.32 + arc * 0.1,
-				-0.62 + k * 0.78,
-				0.48 - k * 0.96 + Math.sin(t * 2.2) * 0.04
+				-0.14 + arc * 0.1,
+				0.08 + k * 0.22,
+				0.08 - k * 0.16 + Math.sin(t * 2.2) * 0.04
 			);
 		} else {
 			// Gentle hover + drift.

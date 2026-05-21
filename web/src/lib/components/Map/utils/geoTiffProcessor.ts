@@ -389,7 +389,7 @@ function shouldRenderAsTransparent(value: number, rescale: [number, number], opt
 function getPixelAlpha(value: number, rescale: [number, number], options: ProcessingOptions): number {
   if (!options.adaptiveAlpha) return 255;
   const normalized = getNormalizedValue(value, rescale);
-  return Math.round(36 + normalized * 154);
+  return Math.round(18 + normalized * 132);
 }
 
 function getDisplayColor(value: number, rescale: [number, number], options: ProcessingOptions): [number, number, number] {
@@ -399,10 +399,19 @@ function getDisplayColor(value: number, rescale: [number, number], options: Proc
   // Demo rasters sit on high-detail satellite imagery; lift dark colormap lows so
   // they read as spectral signal rather than an opaque black footprint.
   return [
-    Math.min(255, Math.round(r + (255 - r) * 0.24)),
-    Math.min(255, Math.round(g + (255 - g) * 0.2)),
-    Math.min(255, Math.round(b + (255 - b) * 0.26))
+    Math.min(255, Math.round(r + (255 - r) * 0.56)),
+    Math.min(255, Math.round(g + (255 - g) * 0.52)),
+    Math.min(255, Math.round(b + (255 - b) * 0.58))
   ];
+}
+
+function getTransparentPixelColor(rescale: [number, number], options: ProcessingOptions): [number, number, number] {
+  if (!options.adaptiveAlpha) return [0, 0, 0];
+  return getDisplayColor(rescale[0], rescale, options);
+}
+
+function getTransparentPixelAlpha(options: ProcessingOptions): number {
+  return options.adaptiveAlpha ? 8 : 0;
 }
 
 /**
@@ -491,11 +500,12 @@ async function processEPSG4326ToMercator(
       if (normalizedX < 0 || normalizedX > 1 || normalizedY < 0 || normalizedY > 1) {
         // Outside source bounds - mark as no-data
         const outIndex = outY * outputWidth + outX;
+        const [r, g, b] = getTransparentPixelColor(rescale, options);
         rawDataCopy[outIndex] = NaN;
-        imageData.data[outIndex * 4] = 0;
-        imageData.data[outIndex * 4 + 1] = 0;
-        imageData.data[outIndex * 4 + 2] = 0;
-        imageData.data[outIndex * 4 + 3] = 0; // Transparent
+        imageData.data[outIndex * 4] = r;
+        imageData.data[outIndex * 4 + 1] = g;
+        imageData.data[outIndex * 4 + 2] = b;
+        imageData.data[outIndex * 4 + 3] = getTransparentPixelAlpha(options); // Visually transparent
         continue;
       }
 
@@ -512,10 +522,11 @@ async function processEPSG4326ToMercator(
 
       // Check for no-data
       if (shouldRenderAsTransparent(value, rescale, options)) {
-        imageData.data[outIndex * 4] = 0;
-        imageData.data[outIndex * 4 + 1] = 0;
-        imageData.data[outIndex * 4 + 2] = 0;
-        imageData.data[outIndex * 4 + 3] = 0; // Transparent
+        const [r, g, b] = getTransparentPixelColor(rescale, options);
+        imageData.data[outIndex * 4] = r;
+        imageData.data[outIndex * 4 + 1] = g;
+        imageData.data[outIndex * 4 + 2] = b;
+        imageData.data[outIndex * 4 + 3] = getTransparentPixelAlpha(options); // Visually transparent
       } else {
         // Apply colormap
         if (options.debugMode) {
@@ -657,10 +668,11 @@ export async function processGeoTIFF(
       // 0 is a valid value (0% prevalence) and should be colored
       if (shouldRenderAsTransparent(value, rescale, options)) {
         // Transparent for no-data values
-        imageData.data[canvasIndex * 4] = 0;
-        imageData.data[canvasIndex * 4 + 1] = 0;
-        imageData.data[canvasIndex * 4 + 2] = 0;
-        imageData.data[canvasIndex * 4 + 3] = 0;
+        const [r, g, b] = getTransparentPixelColor(rescale, options);
+        imageData.data[canvasIndex * 4] = r;
+        imageData.data[canvasIndex * 4 + 1] = g;
+        imageData.data[canvasIndex * 4 + 2] = b;
+        imageData.data[canvasIndex * 4 + 3] = getTransparentPixelAlpha(options);
       } else {
         // Debug mode: show black pixels for all data locations
         if (options.debugMode) {

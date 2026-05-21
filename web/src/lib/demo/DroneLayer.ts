@@ -28,6 +28,7 @@ export class DroneLayer implements maplibregl.CustomLayerInterface {
 	private pathDrawn!: THREE.Line;
 	private particles!: THREE.Points;
 	private particleData!: { age: Float32Array; maxAge: Float32Array };
+	private siteModel: THREE.Group | null = null;
 	private modelOrigin!: maplibregl.MercatorCoordinate;
 	private modelScale!: number;
 
@@ -40,6 +41,7 @@ export class DroneLayer implements maplibregl.CustomLayerInterface {
 	public showPath = false;
 	public showParticles = false;
 	public showFinding = false;
+	public showSiteModel = false;
 	public particleIntensity = 0; // 0..1
 
 	constructor(opts: DroneLayerOptions) {
@@ -102,6 +104,10 @@ export class DroneLayer implements maplibregl.CustomLayerInterface {
 		this.particles.visible = false;
 		this.scene.add(this.particles);
 
+		this.siteModel = this.buildSiteModel(this.path.center, { rotationDeg: -26 });
+		this.siteModel.visible = false;
+		this.scene.add(this.siteModel);
+
 		this.renderer = new THREE.WebGLRenderer({
 			canvas: map.getCanvas(),
 			context: gl as WebGL2RenderingContext,
@@ -141,11 +147,18 @@ export class DroneLayer implements maplibregl.CustomLayerInterface {
 		this.progress = Math.max(0, Math.min(1, p));
 	}
 
-	setVisibility(opts: { drone?: boolean; path?: boolean; particles?: boolean; finding?: boolean }) {
+	setVisibility(opts: {
+		drone?: boolean;
+		path?: boolean;
+		particles?: boolean;
+		finding?: boolean;
+		siteModel?: boolean;
+	}) {
 		if (opts.drone !== undefined) this.showDrone = opts.drone;
 		if (opts.path !== undefined) this.showPath = opts.path;
 		if (opts.particles !== undefined) this.showParticles = opts.particles;
 		if (opts.finding !== undefined) this.showFinding = opts.finding;
+		if (opts.siteModel !== undefined) this.showSiteModel = opts.siteModel;
 	}
 
 	setParticleIntensity(v: number) {
@@ -155,6 +168,11 @@ export class DroneLayer implements maplibregl.CustomLayerInterface {
 	setFindingMeshVisible(v: boolean) {
 		this.showFinding = v;
 		if (this.findingMesh) this.findingMesh.visible = v;
+	}
+
+	setSiteModelVisible(v: boolean) {
+		this.showSiteModel = v;
+		if (this.siteModel) this.siteModel.visible = v;
 	}
 
 	getDronePosition() {
@@ -328,6 +346,188 @@ export class DroneLayer implements maplibregl.CustomLayerInterface {
 		return new THREE.Points(geo, mat);
 	}
 
+	private buildSiteModel(center: [number, number], opts: { rotationDeg?: number } = {}): THREE.Group {
+		const root = new THREE.Group();
+		const centerMerc = maplibregl.MercatorCoordinate.fromLngLat(
+			{ lng: center[0], lat: center[1] },
+			0
+		);
+		root.position.set(
+			(centerMerc.x - this.modelOrigin.x) / this.modelScale,
+			-(centerMerc.y - this.modelOrigin.y) / this.modelScale,
+			(centerMerc.z - this.modelOrigin.z) / this.modelScale + 1.2
+		);
+		root.rotation.z = ((opts.rotationDeg ?? 0) * Math.PI) / 180;
+
+		const wallMat = new THREE.MeshStandardMaterial({
+			color: 0x3d173f,
+			emissive: 0xff2da8,
+			emissiveIntensity: 0.28,
+			metalness: 0.08,
+			roughness: 0.58,
+			transparent: true,
+			opacity: 0.9
+		});
+		const roofMat = new THREE.MeshStandardMaterial({
+			color: 0x15121a,
+			emissive: 0x2e002e,
+			emissiveIntensity: 0.25,
+			metalness: 0.08,
+			roughness: 0.78,
+			transparent: true,
+			opacity: 0.92
+		});
+		const outlineMat = new THREE.LineBasicMaterial({
+			color: 0xff2da8,
+			transparent: true,
+			opacity: 0.96
+		});
+		const moatMat = new THREE.LineBasicMaterial({
+			color: 0x39d2ff,
+			transparent: true,
+			opacity: 0.78
+		});
+		const trenchMat = new THREE.LineBasicMaterial({
+			color: 0xfff454,
+			transparent: true,
+			opacity: 0.9
+		});
+
+		this.addBox(root, 0, 0, 46, 46, 18, wallMat);
+		this.addBox(root, 0, 0, 29, 29, 27, roofMat, 0.08);
+		this.addBox(root, 46, -34, 74, 50, 12, wallMat);
+		this.addBox(root, 28, -70, 26, 50, 9, wallMat);
+		this.addBox(root, 66, -4, 12, 70, 15, wallMat);
+
+		for (const [x, y] of [
+			[-34, 34],
+			[34, 34],
+			[-34, -34],
+			[86, -66]
+		]) {
+			this.addBox(root, x, y, 8, 8, 34, wallMat);
+		}
+
+		this.addRectLine(root, -2, 0, 64, 64, 20, outlineMat);
+		this.addRectLine(root, 46, -34, 90, 64, 14, outlineMat);
+		this.addRectLine(root, 28, -70, 36, 62, 11, outlineMat);
+		this.addPolygonLine(
+			root,
+			[
+				[-135, 72],
+				[-42, 118],
+				[98, 96],
+				[142, 36],
+				[128, -112],
+				[-26, -150],
+				[-138, -82],
+				[-162, 12]
+			],
+			2.5,
+			moatMat
+		);
+		this.addPolygonLine(
+			root,
+			[
+				[-94, 44],
+				[-28, 76],
+				[72, 62],
+				[98, 18],
+				[84, -86],
+				[-20, -112],
+				[-98, -60],
+				[-112, 10]
+			],
+			3,
+			moatMat
+		);
+		this.addPolygonLine(
+			root,
+			[
+				[-26, -6],
+				[6, 18],
+				[34, 2],
+				[42, -30],
+				[6, -46],
+				[-30, -34]
+			],
+			22,
+			trenchMat
+		);
+
+		const markerGeo = new THREE.SphereGeometry(3.2, 12, 12);
+		const markerMat = new THREE.MeshBasicMaterial({ color: 0xfff454 });
+		for (const [x, y] of [
+			[-48, 2],
+			[-20, 24],
+			[18, 30],
+			[50, 8],
+			[68, -26],
+			[54, -62],
+			[16, -82],
+			[-22, -66]
+		]) {
+			const marker = new THREE.Mesh(markerGeo, markerMat);
+			marker.position.set(x, y, 24);
+			root.add(marker);
+		}
+
+		return root;
+	}
+
+	private addBox(
+		root: THREE.Group,
+		x: number,
+		y: number,
+		width: number,
+		depth: number,
+		height: number,
+		material: THREE.Material,
+		rotation = 0
+	) {
+		const mesh = new THREE.Mesh(new THREE.BoxGeometry(width, depth, height), material);
+		mesh.position.set(x, y, height / 2);
+		mesh.rotation.z = rotation;
+		root.add(mesh);
+	}
+
+	private addRectLine(
+		root: THREE.Group,
+		x: number,
+		y: number,
+		width: number,
+		depth: number,
+		z: number,
+		material: THREE.LineBasicMaterial
+	) {
+		const hw = width / 2;
+		const hd = depth / 2;
+		this.addPolygonLine(
+			root,
+			[
+				[x - hw, y - hd],
+				[x + hw, y - hd],
+				[x + hw, y + hd],
+				[x - hw, y + hd]
+			],
+			z,
+			material
+		);
+	}
+
+	private addPolygonLine(
+		root: THREE.Group,
+		points: Array<[number, number]>,
+		z: number,
+		material: THREE.LineBasicMaterial
+	) {
+		const closed = [...points, points[0]];
+		const geo = new THREE.BufferGeometry().setFromPoints(
+			closed.map(([x, y]) => new THREE.Vector3(x, y, z))
+		);
+		root.add(new THREE.Line(geo, material));
+	}
+
 	private pathToLocalPositions(count: number): Float32Array {
 		const arr = new Float32Array(count * 3);
 		for (let i = 0; i < count; i++) {
@@ -345,6 +545,7 @@ export class DroneLayer implements maplibregl.CustomLayerInterface {
 		this.pathLine.visible = this.showPath;
 		this.pathDrawn.visible = this.showPath;
 		if (this.findingMesh) this.findingMesh.visible = this.showFinding;
+		if (this.siteModel) this.siteModel.visible = this.showSiteModel;
 
 		if (this.showDrone) {
 			const sample = samplePath(this.path, this.progress);

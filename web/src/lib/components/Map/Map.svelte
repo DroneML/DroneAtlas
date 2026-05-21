@@ -58,7 +58,7 @@
 
 	// Debug overlay state
 	let showRasterDataOverlay = false; // Hide red pixels by default
-	let navigationDroneVisible = false;
+	let navigationDroneVisible = true;
 	let navigationDroneMode: 'idle' | 'transit' = 'idle';
 	let navigationDroneTimer: ReturnType<typeof setTimeout> | null = null;
 	let navigationFlightRun = 0;
@@ -375,8 +375,12 @@
 		const settleDelay = target === 'overview' ? 250 : 350;
 		const finishFlight = () => {
 			if (run !== navigationFlightRun) return;
-			navigationDroneMode = 'idle';
-			navigationDroneVisible = false;
+			if (target === 'overview') {
+				navigationDroneMode = 'idle';
+				navigationDroneVisible = true;
+			} else {
+				navigationDroneVisible = false;
+			}
 			navigationDroneTimer = null;
 		};
 
@@ -423,13 +427,14 @@
 		const layer = new DroneLayer({ path, id: paperDemoLayerId });
 		map.addLayer(layer);
 
-		layer.setVisibility({ drone: true, path: true, particles: true, finding: false });
+		layer.setVisibility({ drone: false, path: false, particles: false, finding: false, siteModel: true });
 		layer.setProgress(0);
-		layer.setParticleIntensity(0.35);
+		layer.setParticleIntensity(0);
 
 		paperDemoLayer = layer;
 		paperDemoStartedAt = performance.now();
 		animatePaperDemoLayer();
+		movePaperDemoLayerToTop();
 	}
 
 	function animatePaperDemoLayer(ts = performance.now()) {
@@ -450,6 +455,10 @@
 			map.removeLayer(paperDemoLayerId);
 		}
 		paperDemoLayer = null;
+	}
+
+	function movePaperDemoLayerToTop() {
+		if (map?.getLayer(paperDemoLayerId)) map.moveLayer(paperDemoLayerId);
 	}
 
 	function getAnnotationCollection() {
@@ -661,9 +670,12 @@
 	}
 
 	$: if (map && isStyleLoaded) {
-		// The presentation route owns the cinematic 3D DroneLayer. The main map keeps
-		// the real raster overlays clean so they do not render as a black WebGL plane.
-		stopPaperDemoLayer();
+		if ($selectedLocation?.id === 'weesp-castle') {
+			ensurePaperDemoLayer($selectedLocation);
+			movePaperDemoLayerToTop();
+		} else {
+			stopPaperDemoLayer();
+		}
 	}
 
 	// Function to ensure layer order after visualization changes
@@ -676,6 +688,7 @@
 		) {
 			map.once('idle', () => {
 				rasterLayerManager.ensureCorrectLayerOrder();
+				movePaperDemoLayerToTop();
 			});
 		}
 	}
@@ -690,6 +703,7 @@
 		) {
 			map.once('idle', () => {
 				rasterLayerManager.ensureCorrectLayerOrder();
+				movePaperDemoLayerToTop();
 			});
 		}
 	}
