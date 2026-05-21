@@ -20,6 +20,7 @@
 	export let globalOpacity = 80; // Default to 80%, now exposed as a prop
 	let rasterLayersVisible = true;
 	let showRasterDataOverlayLocal = false;
+	let disableFloatingDrone = false;
 
 	// Sidebar configuration
 	let collapsed = false;
@@ -41,7 +42,9 @@
 
 		// Initialize debug overlay toggle from stored setting
 		showRasterDataOverlayLocal = storedSettings.showRasterDataOverlay;
+		disableFloatingDrone = storedSettings.disableFloatingDrone;
 		dispatch('overlaytoggle', { visible: showRasterDataOverlayLocal });
+		dispatch('floatingdronetoggle', { disabled: disableFloatingDrone });
 	});
 </script>
 
@@ -110,8 +113,27 @@
 <!-- Settings Modal -->
 {#if showSettingsModal}
 	<div class="modal modal-open">
-		<div class="modal-box">
+		<div class="modal-box settings-modal">
 			<h3 class="mb-4 text-lg font-bold">Visualization Settings</h3>
+
+			<!-- General Controls -->
+			<div class="form-control mb-4 w-full">
+				<label class="label cursor-pointer">
+					<span class="label-text font-medium">Disable floating drone</span>
+					<input
+						type="checkbox"
+						class="toggle"
+						bind:checked={disableFloatingDrone}
+						onchange={() => {
+							saveSettingsToStorage({ disableFloatingDrone });
+							dispatch('floatingdronetoggle', { disabled: disableFloatingDrone });
+						}}
+					/>
+				</label>
+				<p class="text-base-content/60 mt-1 text-xs">
+					Hides the decorative drone overlay during map navigation.
+				</p>
+			</div>
 
 			<!-- Raster Debug Overlay -->
 			<div class="form-control mb-4 w-full">

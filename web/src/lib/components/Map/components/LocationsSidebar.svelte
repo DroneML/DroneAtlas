@@ -18,6 +18,7 @@
 
 	export let map: MaplibreMap | null = null;
 	export let globalOpacity: number = 80;
+	export let disableFloatingDrone: boolean = false;
 
 	let collapsed = false;
 	let showSettingsModal = false;
@@ -46,7 +47,9 @@
 		globalOpacity = storedSettings.globalOpacity;
 		updateAllRasterLayersOpacity(globalOpacity / 100);
 		showRasterDataOverlayLocal = storedSettings.showRasterDataOverlay;
+		disableFloatingDrone = storedSettings.disableFloatingDrone;
 		dispatch('overlaytoggle', { visible: showRasterDataOverlayLocal });
+		dispatch('floatingdronetoggle', { disabled: disableFloatingDrone });
 	});
 
 	function handleLocationClick(locationId: string) {
@@ -255,6 +258,22 @@
 	<div class="modal modal-open">
 		<div class="modal-box settings-modal">
 			<h3>Visualization Settings</h3>
+
+			<div class="form-control mb-4 w-full">
+				<label class="label cursor-pointer">
+					<span class="label-text font-medium">Disable floating drone</span>
+					<input
+						type="checkbox"
+						class="toggle"
+						bind:checked={disableFloatingDrone}
+						onchange={() => {
+							saveSettingsToStorage({ disableFloatingDrone });
+							dispatch('floatingdronetoggle', { disabled: disableFloatingDrone });
+						}}
+					/>
+				</label>
+				<p class="text-sm text-white/50">Hides the decorative drone overlay during map navigation.</p>
+			</div>
 
 			<div class="form-control mb-4 w-full">
 				<label class="label cursor-pointer">

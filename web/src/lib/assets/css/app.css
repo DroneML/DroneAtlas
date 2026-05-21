@@ -22,6 +22,54 @@ a[target="_blank"] {
   @apply underline;
 }
 
+.settings-modal {
+  color: #e8f1ff;
+  background: #0b111c;
+  border: 1px solid rgba(167, 213, 255, 0.18);
+  box-shadow: 0 24px 80px rgba(0, 0, 0, 0.42);
+}
+
+.settings-modal h3,
+.settings-modal .label-text,
+.settings-modal .label-text-alt {
+  color: #e8f1ff;
+}
+
+.settings-modal p,
+.settings-modal .text-base-content\/60,
+.settings-modal .text-base-content\/70 {
+  color: rgba(232, 241, 255, 0.68);
+}
+
+.settings-modal .toggle {
+  border-color: rgba(232, 241, 255, 0.38);
+  background-color: rgba(232, 241, 255, 0.12);
+  --tglbg: #e8f1ff;
+}
+
+.settings-modal .toggle:checked {
+  border-color: #61d8ff;
+  background-color: #61d8ff;
+  --tglbg: #06101a;
+}
+
+.settings-modal .range {
+  color: #61d8ff;
+  accent-color: #61d8ff;
+  --range-shdw: #61d8ff;
+}
+
+.settings-modal .btn-primary {
+  border-color: #ffb83d;
+  background-color: #ffb83d;
+  color: #06101a;
+}
+
+.settings-modal .btn-primary:hover {
+  border-color: #ffd27a;
+  background-color: #ffd27a;
+}
+
 
 /* Target tables within prose to make them scrollable */
 .prose {

@@ -32,9 +32,14 @@
 	import LocationsSidebar from './components/LocationsSidebar.svelte';
 	import LocationAnalyticsPanel from './components/LocationAnalyticsPanel.svelte';
 	import HeroDrone from '$lib/demo/components/HeroDrone.svelte';
-	import { selectedLocation, selectLocation } from '$lib/stores/projects.store';
-	import { DroneLayer } from '$lib/demo/DroneLayer';
-	import { generateFlightPath } from '$lib/demo/path';
+	import {
+		projectLocations,
+		selectedLocation,
+		selectLocation,
+		toggleProjectLayer,
+		updateProjectLayerOpacity
+	} from '$lib/stores/projects.store';
+	import { get } from 'svelte/store';
 	import type { ProjectLocation, RasterLayer } from '$lib/types';
 
 	// Props that can be passed to the component
@@ -58,15 +63,21 @@
 
 	// Debug overlay state
 	let showRasterDataOverlay = false; // Hide red pixels by default
-	let navigationDroneVisible = true;
+	let disableFloatingDrone = true;
+	let navigationDroneVisible = false;
 	let navigationDroneMode: 'idle' | 'transit' = 'idle';
 	let navigationDroneTimer: ReturnType<typeof setTimeout> | null = null;
 	let navigationFlightRun = 0;
-	let paperDemoLayer: DroneLayer | null = null;
-	let paperDemoAnimation: number | null = null;
-	let paperDemoStartedAt = 0;
 	let siteModelVisible = true;
-	const paperDemoLayerId = 'weesp-paper-survey';
+	const siteReconstructionSourceId = 'weesp-site-reconstruction';
+	const siteReconstructionLayerIds = [
+		'weesp-site-moat-glow',
+		'weesp-site-moat-line',
+		'weesp-site-buildings',
+		'weesp-site-wall-outlines',
+		'weesp-site-trenches',
+		'weesp-site-markers'
+	];
 	let annotationDrawingEnabled = false;
 	let annotationIsDrawing = false;
 	let annotationFeatures: AnnotationFeature[] = [];
@@ -194,6 +205,9 @@
 	function handleMapReady(event: CustomEvent<{ map: MaplibreMap }>) {
 		map = event.detail.map;
 		isStyleLoaded = true;
+		(window as any).__droneAtlasMap = map;
+		selectWeespDemo();
+		map.jumpTo({ center: [5.0776, 52.29278], zoom: 18.1, bearing: -24, pitch: 58 });
 
 		// Add hover event listeners
 		map.on('mousemove', handleCursorChange);
@@ -370,18 +384,16 @@
 	function handleLocationFlightStart(
 		event: CustomEvent<{ duration?: number; target?: 'location' | 'overview' }>
 	) {
+		if (disableFloatingDrone) return;
+
 		const run = ++navigationFlightRun;
 		const duration = event.detail.duration ?? 1800;
 		const target = event.detail.target ?? 'location';
 		const settleDelay = target === 'overview' ? 250 : 350;
 		const finishFlight = () => {
 			if (run !== navigationFlightRun) return;
-			if (target === 'overview') {
-				navigationDroneMode = 'idle';
-				navigationDroneVisible = true;
-			} else {
-				navigationDroneVisible = false;
-			}
+			navigationDroneMode = 'idle';
+			navigationDroneVisible = false;
 			navigationDroneTimer = null;
 		};
 
@@ -399,79 +411,315 @@
 	}
 
 	function handleResetView() {
-		selectLocation(null);
+		selectWeespDemo();
 		if (map) {
 			const duration = 1500;
-			handleLocationFlightStart(new CustomEvent('flightstart', { detail: { duration, target: 'overview' } }));
+			handleLocationFlightStart(new CustomEvent('flightstart', { detail: { duration, target: 'location' } }));
 			map.flyTo({
-				center: [5.5, 52.0],
-				zoom: 7,
-				bearing: 0,
-				pitch: 0,
+				center: [5.0776, 52.29278],
+				zoom: 18.1,
+				bearing: -24,
+				pitch: 58,
 				duration
 			});
 		}
 	}
 
-	function ensurePaperDemoLayer(location: ProjectLocation) {
-		if (!map || !isStyleLoaded || map.getLayer(paperDemoLayerId)) return;
-
-		stopPaperDemoLayer();
-
-		const path = generateFlightPath({
-			center: location.center,
-			passes: 5,
-			passLengthKm: 0.42,
-			passSpacingM: 42,
-			baseAlt: 72
-		});
-		const layer = new DroneLayer({ path, id: paperDemoLayerId });
-		map.addLayer(layer);
-
-		layer.setVisibility({
-			drone: false,
-			path: false,
-			particles: false,
-			finding: false,
-			siteModel: siteModelVisible
-		});
-		layer.setProgress(0);
-		layer.setParticleIntensity(0);
-
-		paperDemoLayer = layer;
-		paperDemoStartedAt = performance.now();
-		animatePaperDemoLayer();
-		movePaperDemoLayerToTop();
-	}
-
-	function animatePaperDemoLayer(ts = performance.now()) {
-		if (!paperDemoLayer) return;
-		const progress = ((ts - paperDemoStartedAt) % 12000) / 12000;
-		paperDemoLayer.setProgress(progress);
-		paperDemoLayer.setParticleIntensity(0.22 + Math.sin(progress * Math.PI) * 0.32);
-		paperDemoAnimation = requestAnimationFrame(animatePaperDemoLayer);
-	}
-
-	function stopPaperDemoLayer() {
-		if (paperDemoAnimation !== null) {
-			cancelAnimationFrame(paperDemoAnimation);
-			paperDemoAnimation = null;
+	function handleFloatingDroneToggle(event: CustomEvent<{ disabled: boolean }>) {
+		disableFloatingDrone = event.detail.disabled;
+		if (!disableFloatingDrone) {
+			navigationDroneVisible = true;
+			navigationDroneMode = 'idle';
+			return;
 		}
 
-		if (map?.getLayer(paperDemoLayerId)) {
-			map.removeLayer(paperDemoLayerId);
-		}
-		paperDemoLayer = null;
+		navigationFlightRun++;
+		if (navigationDroneTimer) clearTimeout(navigationDroneTimer);
+		navigationDroneTimer = null;
+		navigationDroneVisible = false;
+		navigationDroneMode = 'idle';
 	}
 
-	function movePaperDemoLayerToTop() {
-		if (map?.getLayer(paperDemoLayerId)) map.moveLayer(paperDemoLayerId);
+	function selectWeespDemo() {
+		const location = get(projectLocations).find((item) => item.id === 'weesp-castle');
+		if (!location) return;
+
+		selectLocation(location.id);
+		for (const layer of location.layers) {
+			const enabled = layer.id === 'weesp-thermal' || layer.id === 'weesp-ndvi' || layer.id === 'weesp-ml';
+			if (enabled) {
+				toggleProjectLayer(layer, true);
+				const opacity = layer.id === 'weesp-thermal' ? 0.28 : layer.id === 'weesp-ndvi' ? 0.26 : 0.42;
+				updateProjectLayerOpacity(layer.id, opacity);
+			}
+		}
+	}
+
+	function ensureSiteReconstructionLayers(location: ProjectLocation) {
+		if (!map || !isStyleLoaded) return;
+
+		const data = buildSiteReconstructionData(location.center);
+		const existingSource = map.getSource(siteReconstructionSourceId) as
+			| { setData?: (data: any) => void }
+			| undefined;
+
+		if (existingSource?.setData) {
+			existingSource.setData(data);
+		} else if (!existingSource) {
+			map.addSource(siteReconstructionSourceId, {
+				type: 'geojson',
+				data
+			});
+		}
+
+		if (!map.getLayer('weesp-site-moat-glow')) {
+			map.addLayer({
+				id: 'weesp-site-moat-glow',
+				type: 'line',
+				source: siteReconstructionSourceId,
+				filter: ['==', ['get', 'class'], 'moat'],
+				paint: {
+					'line-color': '#39d2ff',
+					'line-width': 12,
+					'line-blur': 8,
+					'line-opacity': 0.5
+				}
+			} as any);
+		}
+
+		if (!map.getLayer('weesp-site-moat-line')) {
+			map.addLayer({
+				id: 'weesp-site-moat-line',
+				type: 'line',
+				source: siteReconstructionSourceId,
+				filter: ['==', ['get', 'class'], 'moat'],
+				paint: {
+					'line-color': '#39d2ff',
+					'line-width': 3.5,
+					'line-opacity': 0.95
+				}
+			} as any);
+		}
+
+		if (!map.getLayer('weesp-site-buildings')) {
+			map.addLayer({
+				id: 'weesp-site-buildings',
+				type: 'fill-extrusion',
+				source: siteReconstructionSourceId,
+				filter: ['==', ['geometry-type'], 'Polygon'],
+				paint: {
+					'fill-extrusion-color': ['get', 'color'],
+					'fill-extrusion-height': ['get', 'height'],
+					'fill-extrusion-base': ['get', 'base'],
+					'fill-extrusion-opacity': 0.86,
+					'fill-extrusion-vertical-gradient': true
+				}
+			} as any);
+		}
+
+		if (!map.getLayer('weesp-site-wall-outlines')) {
+			map.addLayer({
+				id: 'weesp-site-wall-outlines',
+				type: 'line',
+				source: siteReconstructionSourceId,
+				filter: ['==', ['get', 'class'], 'wall-outline'],
+				paint: {
+					'line-color': '#ff2da8',
+					'line-width': 4,
+					'line-opacity': 1
+				}
+			} as any);
+		}
+
+		if (!map.getLayer('weesp-site-trenches')) {
+			map.addLayer({
+				id: 'weesp-site-trenches',
+				type: 'line',
+				source: siteReconstructionSourceId,
+				filter: ['==', ['get', 'class'], 'trench'],
+				paint: {
+					'line-color': '#fff454',
+					'line-width': 3,
+					'line-opacity': 0.96
+				}
+			} as any);
+		}
+
+		if (!map.getLayer('weesp-site-markers')) {
+			map.addLayer({
+				id: 'weesp-site-markers',
+				type: 'circle',
+				source: siteReconstructionSourceId,
+				filter: ['==', ['get', 'class'], 'marker'],
+				paint: {
+					'circle-color': '#fff454',
+					'circle-radius': 5,
+					'circle-blur': 0.15,
+					'circle-opacity': 0.98,
+					'circle-stroke-color': '#211900',
+					'circle-stroke-width': 1.5
+				}
+			} as any);
+		}
+
+		setSiteReconstructionVisibility(siteModelVisible);
+		moveSiteReconstructionLayersToTop();
+	}
+
+	function setSiteReconstructionVisibility(visible: boolean) {
+		if (!map) return;
+		const visibility = visible ? 'visible' : 'none';
+		for (const layerId of siteReconstructionLayerIds) {
+			if (map.getLayer(layerId)) map.setLayoutProperty(layerId, 'visibility', visibility);
+		}
+	}
+
+	function removeSiteReconstructionLayers() {
+		if (!map) return;
+		for (const layerId of [...siteReconstructionLayerIds].reverse()) {
+			if (map.getLayer(layerId)) map.removeLayer(layerId);
+		}
+		if (map.getSource(siteReconstructionSourceId)) map.removeSource(siteReconstructionSourceId);
+	}
+
+	function moveSiteReconstructionLayersToTop() {
+		if (!map) return;
+		for (const layerId of siteReconstructionLayerIds) {
+			if (map.getLayer(layerId)) map.moveLayer(layerId);
+		}
 	}
 
 	function handleSiteModelToggle(event: CustomEvent<{ visible: boolean }>) {
 		siteModelVisible = event.detail.visible;
-		paperDemoLayer?.setSiteModelVisible(siteModelVisible);
-		movePaperDemoLayerToTop();
+		setSiteReconstructionVisibility(siteModelVisible);
+		moveSiteReconstructionLayersToTop();
+	}
+
+	function buildSiteReconstructionData(center: [number, number]) {
+		const rotation = -26;
+		const polygon = (
+			id: string,
+			points: Array<[number, number]>,
+			height: number,
+			color = '#ff2da8',
+			base = 1
+		) => ({
+			type: 'Feature',
+			properties: { id, height, base, color },
+			geometry: {
+				type: 'Polygon',
+				coordinates: [[...points, points[0]].map(([x, y]) => localMetersToLngLat(center, x, y, rotation))]
+			}
+		});
+
+		const box = (id: string, x: number, y: number, width: number, depth: number, height: number, color?: string) =>
+			polygon(
+				id,
+				[
+					[x - width / 2, y - depth / 2],
+					[x + width / 2, y - depth / 2],
+					[x + width / 2, y + depth / 2],
+					[x - width / 2, y + depth / 2]
+				],
+				height,
+				color
+			);
+
+		const line = (id: string, className: string, points: Array<[number, number]>, close = true) => ({
+			type: 'Feature',
+			properties: { id, class: className },
+			geometry: {
+				type: 'LineString',
+				coordinates: (close ? [...points, points[0]] : points).map(([x, y]) =>
+					localMetersToLngLat(center, x, y, rotation)
+				)
+			}
+		});
+
+		const point = (id: string, x: number, y: number) => ({
+			type: 'Feature',
+			properties: { id, class: 'marker' },
+			geometry: { type: 'Point', coordinates: localMetersToLngLat(center, x, y, rotation) }
+		});
+
+		return {
+			type: 'FeatureCollection',
+			features: [
+				box('tower', 0, 0, 54, 54, 38, '#cc2cff'),
+				box('inner-keep', 0, 0, 30, 30, 52, '#ff2da8'),
+				box('south-hall', 48, -38, 82, 54, 24, '#bd246f'),
+				box('gate-wing', 30, -80, 34, 58, 20, '#bd246f'),
+				box('east-wall', 78, -8, 16, 86, 28, '#d33487'),
+				box('pillar-nw', -38, 38, 12, 12, 48, '#ff54c4'),
+				box('pillar-ne', 38, 38, 12, 12, 48, '#ff54c4'),
+				box('pillar-sw', -38, -38, 12, 12, 44, '#ff54c4'),
+				box('pillar-se', 96, -72, 12, 12, 44, '#ff54c4'),
+				line('outer-moat', 'moat', [
+					[-150, 82],
+					[-46, 126],
+					[106, 100],
+					[152, 38],
+					[138, -124],
+					[-28, -160],
+					[-154, -88],
+					[-176, 16]
+				]),
+				line('inner-moat', 'moat', [
+					[-100, 48],
+					[-28, 84],
+					[82, 66],
+					[108, 20],
+					[90, -96],
+					[-22, -120],
+					[-106, -64],
+					[-122, 12]
+				]),
+				line('tower-outline', 'wall-outline', [
+					[-34, -34],
+					[34, -34],
+					[34, 34],
+					[-34, 34]
+				]),
+				line('hall-outline', 'wall-outline', [
+					[2, -70],
+					[94, -70],
+					[94, -4],
+					[2, -4]
+				]),
+				line('trench-signal', 'trench', [
+					[-32, -8],
+					[6, 22],
+					[42, 2],
+					[50, -34],
+					[8, -52],
+					[-36, -38]
+				]),
+				...[
+					[-52, 4],
+					[-20, 26],
+					[20, 32],
+					[56, 10],
+					[74, -28],
+					[58, -68],
+					[16, -88],
+					[-24, -70]
+				].map(([x, y], i) => point(`marker-${i}`, x, y))
+			]
+		};
+	}
+
+	function localMetersToLngLat(
+		center: [number, number],
+		xMeters: number,
+		yMeters: number,
+		rotationDeg: number
+	): [number, number] {
+		const rotation = (rotationDeg * Math.PI) / 180;
+		const east = xMeters * Math.cos(rotation) - yMeters * Math.sin(rotation);
+		const north = xMeters * Math.sin(rotation) + yMeters * Math.cos(rotation);
+		const lat = center[1] + north / 111_320;
+		const lng = center[0] + east / (111_320 * Math.cos((center[1] * Math.PI) / 180));
+		return [lng, lat];
 	}
 
 	function getAnnotationCollection() {
@@ -646,14 +894,19 @@
 				console.warn(`Initial style ID "${initialStyleId}" not found. Using default.`);
 			}
 		}
+
+		selectWeespDemo();
 	});
 
 	onDestroy(() => {
 		if (navigationDroneTimer) clearTimeout(navigationDroneTimer);
-		stopPaperDemoLayer();
+		removeSiteReconstructionLayers();
 
 		if ((window as any).__mapComponent) {
 			delete (window as any).__mapComponent;
+		}
+		if ((window as any).__droneAtlasMap) {
+			delete (window as any).__droneAtlasMap;
 		}
 
 		if (map) {
@@ -684,11 +937,11 @@
 
 	$: if (map && isStyleLoaded) {
 		if ($selectedLocation?.id === 'weesp-castle') {
-			ensurePaperDemoLayer($selectedLocation);
-			paperDemoLayer?.setSiteModelVisible(siteModelVisible);
-			movePaperDemoLayerToTop();
+			ensureSiteReconstructionLayers($selectedLocation);
+			setSiteReconstructionVisibility(siteModelVisible);
+			moveSiteReconstructionLayersToTop();
 		} else {
-			stopPaperDemoLayer();
+			removeSiteReconstructionLayers();
 		}
 	}
 
@@ -702,7 +955,7 @@
 		) {
 			map.once('idle', () => {
 				rasterLayerManager.ensureCorrectLayerOrder();
-				movePaperDemoLayerToTop();
+				moveSiteReconstructionLayersToTop();
 			});
 		}
 	}
@@ -717,7 +970,7 @@
 		) {
 			map.once('idle', () => {
 				rasterLayerManager.ensureCorrectLayerOrder();
-				movePaperDemoLayerToTop();
+				moveSiteReconstructionLayersToTop();
 			});
 		}
 	}
@@ -775,9 +1028,9 @@
 		</div>
 	</nav>
 
-	<HeroDrone visible={navigationDroneVisible} mode={navigationDroneMode} zIndex={8} />
+	<HeroDrone visible={!disableFloatingDrone && navigationDroneVisible} mode={navigationDroneMode} zIndex={8} />
 	<div
-		class:navigation-active={navigationDroneMode === 'transit'}
+		class:navigation-active={!disableFloatingDrone && navigationDroneMode === 'transit'}
 		class="navigation-cinema pointer-events-none absolute inset-0 z-[7]"
 	></div>
 
@@ -830,7 +1083,9 @@
 	<LocationsSidebar
 		{map}
 		bind:globalOpacity
+		bind:disableFloatingDrone
 		on:flightstart={handleLocationFlightStart}
+		on:floatingdronetoggle={handleFloatingDroneToggle}
 		on:opacitychange={handleOpacityChange}
 		on:overlaytoggle={(e) => {
 			showRasterDataOverlay = e.detail.visible;
