@@ -28,7 +28,6 @@
 	import MapControls from './components/MapControls.svelte';
 	import RasterLayerManager from './components/RasterLayerManager.svelte';
 	import RasterLegend from './components/RasterLegend.svelte';
-	import RasterDataOverlay from './components/RasterDataOverlay.svelte';
 	import LocationsSidebar from './components/LocationsSidebar.svelte';
 	import LocationAnalyticsPanel from './components/LocationAnalyticsPanel.svelte';
 	import HeroDrone from '$lib/demo/components/HeroDrone.svelte';
@@ -39,6 +38,7 @@
 		toggleProjectLayer,
 		updateProjectLayerOpacity
 	} from '$lib/stores/projects.store';
+	import { WEESP_DEMO_CENTER } from '$lib/demo/weesp';
 	import { get } from 'svelte/store';
 	import type { ProjectLocation, RasterLayer } from '$lib/types';
 
@@ -62,7 +62,6 @@
 	let isStyleLoaded = false;
 
 	// Debug overlay state
-	let showRasterDataOverlay = false; // Hide red pixels by default
 	let disableFloatingDrone = true;
 	let navigationDroneVisible = false;
 	let navigationDroneMode: 'idle' | 'transit' = 'idle';
@@ -78,6 +77,12 @@
 		'weesp-site-trenches',
 		'weesp-site-markers'
 	];
+	const weespLayerOpacity: Record<string, number> = {
+		'weesp-rgb': 0.86,
+		'weesp-lidar': 0.56,
+		'weesp-multispectral': 0.38,
+		'weesp-thermal': 0.42
+	};
 	let annotationDrawingEnabled = false;
 	let annotationIsDrawing = false;
 	let annotationFeatures: AnnotationFeature[] = [];
@@ -207,7 +212,7 @@
 		isStyleLoaded = true;
 		(window as any).__droneAtlasMap = map;
 		selectWeespDemo();
-		map.jumpTo({ center: [5.0776, 52.29278], zoom: 18.1, bearing: -24, pitch: 58 });
+		map.jumpTo({ center: WEESP_DEMO_CENTER, zoom: 18.45, bearing: -24, pitch: 58 });
 
 		// Add hover event listeners
 		map.on('mousemove', handleCursorChange);
@@ -416,8 +421,8 @@
 			const duration = 1500;
 			handleLocationFlightStart(new CustomEvent('flightstart', { detail: { duration, target: 'location' } }));
 			map.flyTo({
-				center: [5.0776, 52.29278],
-				zoom: 18.1,
+				center: WEESP_DEMO_CENTER,
+				zoom: 18.45,
 				bearing: -24,
 				pitch: 58,
 				duration
@@ -446,11 +451,10 @@
 
 		selectLocation(location.id);
 		for (const layer of location.layers) {
-			const enabled = layer.id === 'weesp-thermal' || layer.id === 'weesp-ndvi' || layer.id === 'weesp-ml';
+			const enabled = layer.defaultEnabled ?? false;
 			if (enabled) {
 				toggleProjectLayer(layer, true);
-				const opacity = layer.id === 'weesp-thermal' ? 0.28 : layer.id === 'weesp-ndvi' ? 0.26 : 0.42;
-				updateProjectLayerOpacity(layer.id, opacity);
+				updateProjectLayerOpacity(layer.id, weespLayerOpacity[layer.id] ?? (layer.opacity ?? 0.48));
 			}
 		}
 	}
@@ -468,7 +472,7 @@
 		} else if (!existingSource) {
 			map.addSource(siteReconstructionSourceId, {
 				type: 'geojson',
-				data
+				data: data as any
 			});
 		}
 
@@ -1087,8 +1091,8 @@
 		on:flightstart={handleLocationFlightStart}
 		on:floatingdronetoggle={handleFloatingDroneToggle}
 		on:opacitychange={handleOpacityChange}
-		on:overlaytoggle={(e) => {
-			showRasterDataOverlay = e.detail.visible;
+		on:overlaytoggle={() => {
+			// Heavy red-pixel debug overlay intentionally disabled for the demo.
 		}}
 	/>
 
@@ -1096,11 +1100,6 @@
 
 	{#if map && isStyleLoaded}
 		<RasterLegend visible={true} />
-	{/if}
-
-	<!-- Raster Data Overlay - shows red pixels for all raster data -->
-	{#if map && isStyleLoaded}
-		<RasterDataOverlay {map} visible={showRasterDataOverlay} />
 	{/if}
 
 	<!-- Hover Tooltip - follows mouse cursor -->

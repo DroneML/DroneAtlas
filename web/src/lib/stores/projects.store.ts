@@ -3,6 +3,7 @@ import { base } from '$app/paths';
 import type { ProjectLocation, ProjectLayerDef } from '$lib/types';
 import { rasterLayers } from '$lib/stores/raster.store';
 import type { RasterLayer } from '$lib/types';
+import { WEESP_DEMO_CENTER, WEESP_IMAGE_BOUNDS, WEESP_IMAGE_URLS } from '$lib/demo/weesp';
 
 // Mock data served from static/mock/ during development.
 // Replace with R2 URLs (e.g. https://pub-xxx.r2.dev/cogs/projects/...) for production.
@@ -17,21 +18,21 @@ const sampleLocations: ProjectLocation[] = [
   {
     id: 'weesp-castle',
     name: "'t Huijs ten Bosch, Weesp",
-    subtitle: 'Paper demo: in search of a castle',
-    caseStudy: '4D Research Lab multi-sensor UAS case study',
+    subtitle: 'Image-layer demo: in search of a castle',
+    caseStudy: '4D Research Lab multi-sensor visual case study',
     period: 'Field campaigns: February, June, and September 2022',
     description:
-      'A medieval castle near Weesp, built after 1220 and destroyed in 1672, is no longer visible as a structure. The demo follows the paper workflow: combine drone sensor layers, train DroneML from expert labels, and inspect a probability map for likely wall, moat, and debris traces.',
+      'A medieval castle near Weesp, built after 1220 and destroyed in 1672, is no longer visible as a structure. The demo uses four lightweight visual image layers: high-resolution RGB, LiDAR micro-topography, multispectral vegetation response, and thermal infrared contrast.',
     citation: weespSource,
-    center: [5.0776, 52.29278],
-    zoom: 18.1,
+    center: WEESP_DEMO_CENTER,
+    zoom: 18.45,
     bearing: -24,
     pitch: 58,
     facts: [
       { label: 'Site', value: 'medieval castle' },
       { label: 'Destroyed', value: '1672' },
-      { label: 'LiDAR', value: '122M points' },
-      { label: 'Anomalies', value: '55' }
+      { label: 'Layers', value: '4 visual' },
+      { label: 'Format', value: '1:1 PNG' }
     ],
     findings: [
       'probable castle wall traces',
@@ -41,42 +42,76 @@ const sampleLocations: ProjectLocation[] = [
     ],
     workflow: [
       {
-        title: '1. Acquire',
-        description: 'Optical, thermal, multispectral, and LiDAR drone observations are collected across the site.'
+        title: '1. Fly',
+        description: 'The drone camera targets the Weesp reference coordinate and survey footprint.'
       },
       {
-        title: '2. Align',
-        description: 'Sensor products become georeferenced layers that can be inspected together.'
+        title: '2. Stack',
+        description: 'RGB, LiDAR, multispectral, and thermal images are placed as map layers.'
       },
       {
-        title: '3. Label',
-        description: 'The archaeologist marks positive and negative examples of relevant anomalies.'
+        title: '3. Toggle',
+        description: 'Layer opacity and visibility reveal different physical signals.'
       },
       {
-        title: '4. Learn',
-        description: 'DroneML combines UNet-derived image features with a RandomForest classifier.'
-      },
-      {
-        title: '5. Interpret',
-        description: 'The probability map highlights where expert archaeological attention should focus.'
+        title: '4. Interpret',
+        description: 'The visual evidence stack highlights likely wall, moat, and buried-remain traces.'
       }
     ],
     layers: [
       {
-        id: 'weesp-optical',
-        name: 'Optical cropmarks',
+        id: 'weesp-rgb',
+        name: 'High-resolution RGB',
         type: 'rgb',
-        sourceUrl: `${mockBase}/weesp/optical_cropmarks.tif`,
-        colormap: 'terrain',
-        opacity: 0.58,
-        rescale: [0, 255],
+        sourceUrl: WEESP_IMAGE_URLS.rgb,
+        imageUrl: WEESP_IMAGE_URLS.rgb,
+        bounds: WEESP_IMAGE_BOUNDS,
+        opacity: 0.86,
         defaultEnabled: true,
-        description: 'Visible-light crop and soil-mark contrast around the suspected castle footprint.',
-        evidence: 'Subtle rectangular traces and texture shifts that are difficult to read in isolation.',
+        description: 'The surface base layer for field context, visible cropmarks, and present-day texture.',
+        evidence: 'Shows the ground surface, surrounding water/road context, and subtle visible texture changes.',
         layerMetadata: {
-          indicator: 'Optical contrast',
+          indicator: 'RGB visual context',
           study: "'t Huijs ten Bosch, Weesp",
-          definition: 'Visible cropmark and soil-mark proxy layer',
+          definition: 'High-resolution RGB image overlay',
+          source: weespSource,
+          hyperlink: 'https://doi.org/10.21942/uva.23375486.v3'
+        }
+      },
+      {
+        id: 'weesp-lidar',
+        name: 'LiDAR micro-topography',
+        type: 'lidar',
+        sourceUrl: WEESP_IMAGE_URLS.lidar,
+        imageUrl: WEESP_IMAGE_URLS.lidar,
+        bounds: WEESP_IMAGE_BOUNDS,
+        opacity: 0.56,
+        defaultEnabled: true,
+        description: 'Micro-topographic layer for residual relief, buried wall lines, and moat morphology.',
+        evidence: 'Reveals low-relief rectangular and moat-like forms after the visible castle has disappeared.',
+        layerMetadata: {
+          indicator: 'LiDAR relief',
+          study: "'t Huijs ten Bosch, Weesp",
+          definition: 'LiDAR micro-topography image overlay',
+          source: weespSource,
+          hyperlink: 'https://doi.org/10.21942/uva.23375486.v3'
+        }
+      },
+      {
+        id: 'weesp-multispectral',
+        name: 'Multispectral NDVI',
+        type: 'multispectral',
+        sourceUrl: WEESP_IMAGE_URLS.multispectral,
+        imageUrl: WEESP_IMAGE_URLS.multispectral,
+        bounds: WEESP_IMAGE_BOUNDS,
+        opacity: 0.38,
+        defaultEnabled: true,
+        description: 'Vegetation response layer for stress or growth changes above buried structures.',
+        evidence: 'Highlights vegetation stress contrasts around possible walls and moat fills.',
+        layerMetadata: {
+          indicator: 'NDVI visual proxy',
+          study: "'t Huijs ten Bosch, Weesp",
+          definition: 'Multispectral vegetation-stress image overlay',
           source: weespSource,
           hyperlink: 'https://doi.org/10.21942/uva.23375486.v3'
         }
@@ -85,72 +120,17 @@ const sampleLocations: ProjectLocation[] = [
         id: 'weesp-thermal',
         name: 'Thermal infrared contrast',
         type: 'infrared',
-        sourceUrl: `${mockBase}/weesp/thermal_contrast.tif`,
-        colormap: 'inferno',
-        opacity: 0.62,
-        rescale: [12, 26],
+        sourceUrl: WEESP_IMAGE_URLS.thermal,
+        imageUrl: WEESP_IMAGE_URLS.thermal,
+        bounds: WEESP_IMAGE_BOUNDS,
+        opacity: 0.42,
+        defaultEnabled: true,
         description: 'Thermal differences that can reveal buried material through heat-retention patterns.',
-        evidence: 'Warmer linear signals around possible wall and debris zones.',
+        evidence: 'Highlights heat-capacity signatures along possible wall, moat, and debris zones.',
         layerMetadata: {
-          indicator: 'Thermal contrast',
+          indicator: 'Thermal visual contrast',
           study: "'t Huijs ten Bosch, Weesp",
-          definition: 'Thermal infrared proxy layer',
-          source: weespSource,
-          hyperlink: 'https://doi.org/10.21942/uva.23375486.v3'
-        }
-      },
-      {
-        id: 'weesp-ndvi',
-        name: 'Multispectral NDVI',
-        type: 'multispectral',
-        sourceUrl: `${mockBase}/weesp/ndvi.tif`,
-        colormap: 'viridis',
-        opacity: 0.58,
-        rescale: [20, 90],
-        description: 'Vegetation response layer for stress or growth changes above buried structures.',
-        evidence: 'Lower vegetation response on wall traces and different response over possible moat fill.',
-        layerMetadata: {
-          indicator: 'NDVI proxy',
-          study: "'t Huijs ten Bosch, Weesp",
-          definition: 'Multispectral vegetation-index proxy layer',
-          source: weespSource,
-          hyperlink: 'https://doi.org/10.21942/uva.23375486.v3'
-        }
-      },
-      {
-        id: 'weesp-lidar',
-        name: 'LiDAR DTM micro-relief',
-        type: 'lidar',
-        sourceUrl: `${mockBase}/weesp/lidar_dtm.tif`,
-        colormap: 'terrain',
-        opacity: 0.66,
-        rescale: [0, 3],
-        defaultEnabled: true,
-        description: 'Fine-scale terrain variation representing residual relief and ditch morphology.',
-        evidence: 'Low-relief rectangular and moat-like forms after the visible castle has disappeared.',
-        layerMetadata: {
-          indicator: 'Elevation proxy',
-          study: "'t Huijs ten Bosch, Weesp",
-          definition: 'LiDAR DTM micro-relief proxy layer',
-          source: weespSource,
-          hyperlink: 'https://doi.org/10.21942/uva.23375486.v3'
-        }
-      },
-      {
-        id: 'weesp-ml',
-        name: 'DroneML probability',
-        type: 'ml-prediction',
-        sourceUrl: `${mockBase}/weesp/droneml_probability.tif`,
-        colormap: 'plasma',
-        opacity: 0.74,
-        rescale: [0, 100],
-        defaultEnabled: true,
-        description: 'Per-pixel probability surface from the DroneML interpretation workflow.',
-        evidence: 'Highlights likely castle walls, moat edges, and debris concentrations for expert review.',
-        layerMetadata: {
-          indicator: 'Detection probability',
-          study: "'t Huijs ten Bosch, Weesp",
-          definition: 'DroneML probability proxy layer',
+          definition: 'Thermal infrared image overlay',
           source: weespSource,
           hyperlink: 'https://doi.org/10.21942/uva.23375486.v3'
         }
@@ -338,6 +318,8 @@ export function toggleProjectLayer(layerDef: ProjectLayerDef, enable: boolean): 
 			id: rasterStoreId,
 			name: layerDef.name,
 			sourceUrl: layerDef.sourceUrl,
+			dataUrl: layerDef.imageUrl,
+			bounds: layerDef.bounds,
 			isVisible: true,
 			opacity: layerDef.opacity ?? 0.8,
 			isLoading: false,

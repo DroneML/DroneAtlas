@@ -145,13 +145,14 @@ export function syncRasterLayers(
 
           // Add layer if source exists and layer doesn't
           if (currentMap?.getSource(sourceId) && !currentMap?.getLayer(layerId)) {
+            const isImageOverlay = /\.(png|jpe?g|webp|avif)(\?|$)/i.test(layer.sourceUrl);
             const paint: any = {
               'raster-opacity': layer.opacity,
-              'raster-resampling': 'nearest'
+              'raster-resampling': isImageOverlay ? 'linear' : 'nearest'
             };
 
             const isProjectLayer = layerId.startsWith('project-');
-            if (isProjectLayer) {
+            if (isProjectLayer && !isImageOverlay) {
               paint['raster-brightness-min'] = 0.2;
               paint['raster-brightness-max'] = 1;
               paint['raster-contrast'] = 0.22;

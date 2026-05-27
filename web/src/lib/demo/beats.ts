@@ -4,6 +4,7 @@ import type { Map as MaplibreMap } from 'maplibre-gl';
 import type { DroneLayer } from './DroneLayer';
 import type { FlightPath } from './path';
 import { samplePath } from './path';
+import { WEESP_DEMO_CENTER } from './weesp';
 
 export interface SceneRefs {
 	map: MaplibreMap;
@@ -22,14 +23,14 @@ export interface SceneRefs {
 	setSurveyBox: (visible: boolean) => void;
 }
 
-const WEESP: [number, number] = [5.0456, 52.3077];
+const WEESP: [number, number] = WEESP_DEMO_CENTER;
 const AMSTERDAM: [number, number] = [4.9041, 52.3676];
 
 export function buildBeats(refs: SceneRefs): Beat[] {
 	const { map, droneLayer, path } = refs;
 
 	const resetSensors = () => {
-		for (const id of ['rgb', 'thermal', 'lidar', 'ml']) refs.setSensorActive(id, false);
+		for (const id of ['rgb', 'lidar', 'multispectral', 'thermal']) refs.setSensorActive(id, false);
 	};
 	const resetDetections = () => {
 		for (const id of ['foundation', 'wall', 'pit']) refs.setDetectionVisible(id, false);
@@ -58,7 +59,7 @@ export function buildBeats(refs: SceneRefs): Beat[] {
 			subtitle: "A real case: 't Huijs ten Bosch, Weesp",
 			caption: '',
 			presenterNote:
-				"A medieval castle disappeared from the landscape. The traces are still there, but only as faint signals across drone sensor layers. DroneML helps archaeologists find those signals. DroneATLAS makes that workflow accessible as a research platform.",
+				"A medieval castle disappeared from the landscape. The traces are still there, but only as faint signals across drone sensor layers. Layer comparison helps archaeologists find those signals. DroneATLAS makes that workflow accessible as a research platform.",
 			showTelemetry: false,
 			...at(8),
 			enter: () => {
@@ -121,7 +122,7 @@ export function buildBeats(refs: SceneRefs): Beat[] {
 		{
 			id: 'sensors',
 			title: 'Many Sensors, One Hidden Site',
-			subtitle: 'Optical · thermal · multispectral · LiDAR',
+			subtitle: 'RGB · LiDAR · multispectral · thermal',
 			caption: 'Each sensor sees a different physical signal.',
 			presenterNote:
 				'No single layer tells the full story. Optical imagery shows cropmarks and soil marks. Thermal data shows heat-retention differences. Multispectral indices show vegetation stress. LiDAR and elevation models show micromorphology.',
@@ -138,9 +139,9 @@ export function buildBeats(refs: SceneRefs): Beat[] {
 				const eased = easing.easeInOut(t);
 				refs.setSensorStackProgress(Math.max(0, (t - 0.1) / 0.82));
 				if (t > 0.16) refs.setSensorActive('rgb', true);
-				if (t > 0.34) refs.setSensorActive('thermal', true);
-				if (t > 0.54) refs.setSensorActive('lidar', true);
-				if (t > 0.74) refs.setSensorActive('ml', true);
+				if (t > 0.34) refs.setSensorActive('lidar', true);
+				if (t > 0.54) refs.setSensorActive('multispectral', true);
+				if (t > 0.74) refs.setSensorActive('thermal', true);
 				map.jumpTo({ center: path.center, zoom: 15.2, pitch: 50 + eased * 8, bearing: -24 + eased * 28 });
 			}
 		},
@@ -172,11 +173,11 @@ export function buildBeats(refs: SceneRefs): Beat[] {
 
 		{
 			id: 'droneml',
-			title: 'DroneML: The Core',
-			subtitle: 'Machine learning for archaeological anomaly detection',
-			caption: 'The model supports interpretation; it does not replace archaeology.',
+			title: 'Layer Comparison: The Core',
+			subtitle: 'Visual evidence for archaeological anomaly detection',
+			caption: 'For the demo, the layer stack is enough to explain the signal.',
 			presenterNote:
-				'DroneML is the core scientific method. It is designed for anomaly detection in multiband geospatial drone data: not clean object detection, but support for finding subtle patterns that may represent buried archaeological features.',
+				'For this demo we skip heavy processing and compare the georeferenced image layers directly. RGB gives surface context, LiDAR shows micro-relief, multispectral shows vegetation stress, and thermal shows heat-retention contrast.',
 			showTelemetry: false,
 			...at(8),
 			enter: () => {
@@ -198,11 +199,11 @@ export function buildBeats(refs: SceneRefs): Beat[] {
 
 		{
 			id: 'ml',
-			title: 'How The Machine Learning Works',
-			subtitle: 'Labels → UNet features → RandomForest → probability map',
-			caption: 'Fast feedback keeps the archaeologist in the loop.',
+			title: 'How Layer Interpretation Works',
+			subtitle: 'RGB + LiDAR + NDVI + thermal',
+			caption: 'Fast visual toggling keeps the archaeological interpretation in the loop.',
 			presenterNote:
-				'The expert marks positive and negative examples. A pretrained UNet extracts spatial features. A RandomForest learns from the small set of labels. The output is a probability map per pixel, returned quickly enough to support exploration.',
+				'The expert compares physical signals rather than trusting one layer. A wall may appear as thermal contrast, vegetation stress, and micro-topography; a moat can show different moisture, relief, or heat capacity signatures.',
 			showTelemetry: false,
 			...at(9),
 			enter: () => {
@@ -247,7 +248,7 @@ export function buildBeats(refs: SceneRefs): Beat[] {
 			id: 'atlas',
 			title: 'DroneATLAS: The Research Platform',
 			subtitle: 'A polished environment for drone-data analysis',
-			caption: 'The DroneML workflow becomes a platform experience.',
+			caption: 'The multisensor layer workflow becomes a platform experience.',
 			presenterNote:
 				'DroneATLAS presents this as a researcher-facing platform. The user does not need to think first about code or command-line tools. They bring drone imagery, organize the layers, process the data, run analysis, and inspect results spatially.',
 			showTelemetry: false,
@@ -265,11 +266,11 @@ export function buildBeats(refs: SceneRefs): Beat[] {
 
 		{
 			id: 'process',
-			title: 'Drag, Drop, Process',
-			subtitle: 'Drone imagery becomes geospatial ML output',
-			caption: 'Upload layers, run the pipeline, return a probability map.',
+			title: 'Drop, Stack, Compare',
+			subtitle: 'Drone imagery becomes a geospatial evidence stack',
+			caption: 'Upload image layers, align them, and inspect the site visually.',
 			presenterNote:
-				'This is the product workflow: researchers add drone-derived layers, DroneATLAS organizes and prepares them, the DroneML/Pycoeus pipeline runs the model, and the output comes back as a map layer for interpretation.',
+				'This is the lightweight product workflow for the demo: researchers add drone-derived images, DroneATLAS organizes them as map layers, and the archaeologist compares visual signals by switching and blending layers.',
 			showTelemetry: false,
 			...at(9),
 			enter: () => {
@@ -287,9 +288,9 @@ export function buildBeats(refs: SceneRefs): Beat[] {
 				droneLayer.setProgress((0.25 + eased * 0.45) % 1);
 				droneLayer.setParticleIntensity(0.25 + eased * 0.45);
 				if (t > 0.18) refs.setSensorActive('rgb', true);
-				if (t > 0.34) refs.setSensorActive('thermal', true);
-				if (t > 0.5) refs.setSensorActive('lidar', true);
-				if (t > 0.72) refs.setSensorActive('ml', true);
+				if (t > 0.34) refs.setSensorActive('lidar', true);
+				if (t > 0.5) refs.setSensorActive('multispectral', true);
+				if (t > 0.72) refs.setSensorActive('thermal', true);
 				map.jumpTo({ center: path.center, zoom: 15.4 + eased * 0.8, pitch: 54, bearing: -26 + eased * 34 });
 			},
 			exit: () => droneLayer.setParticleIntensity(0)
@@ -336,20 +337,21 @@ export function buildBeats(refs: SceneRefs): Beat[] {
 
 		{
 			id: 'insight',
-			title: 'From Prediction To Archaeological Insight',
-			subtitle: 'A 3D probability surface for expert interpretation',
-			caption: 'The result shows where the buried signal may be strongest.',
+			title: 'From Layers To Archaeological Insight',
+			subtitle: 'A visual evidence stack for expert interpretation',
+			caption: 'The layer stack shows where buried signals may line up.',
 			presenterNote:
-				'The model does not declare archaeological truth. It returns a spatial probability surface: where the signal is strongest and where expert interpretation should focus. This is the final value of the workflow: hidden evidence becomes visible, inspectable, and reusable.',
+				'The layer stack does not declare archaeological truth. It makes different physical signals visible in one place so expert interpretation can focus on areas where RGB, LiDAR, multispectral, and thermal evidence line up.',
 			showTelemetry: true,
 			...at(14),
 			enter: () => {
 				resetVisuals();
-				refs.setSurveyBox(false);
-				droneLayer.setVisibility({ drone: true, path: true, particles: false, finding: true });
+				refs.setSurveyBox(true);
+				refs.setSensorStackProgress(1);
+				droneLayer.setVisibility({ drone: true, path: true, particles: false, finding: false });
 				droneLayer.setSiteModelVisible(true);
 				droneLayer.setProgress(1);
-				const center = droneLayer.getFindingCenter() ?? path.center;
+				const center = path.center;
 				map.jumpTo({ center, zoom: 17.05, pitch: 66, bearing: -28 });
 				refs.setDetectionVisible('foundation', true);
 				refs.setDetectionVisible('wall', true);
@@ -357,7 +359,7 @@ export function buildBeats(refs: SceneRefs): Beat[] {
 			},
 			tick: (_, t) => {
 				const eased = easing.easeInOut(t);
-				const center = droneLayer.getFindingCenter() ?? path.center;
+				const center = path.center;
 				refs.setTelemetry({ altitude: 72, speed: 0, coverageKm2: 0.42, detections: 55 });
 				map.jumpTo({
 					center,

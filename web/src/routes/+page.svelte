@@ -1,5 +1,6 @@
 <script lang="ts">
 	import Map from '$lib/components/Map/Map.svelte';
+	import { WEESP_DEMO_CENTER } from '$lib/demo/weesp';
 </script>
 
 <svelte:head>
@@ -7,5 +8,5 @@
 </svelte:head>
 
 <div class="relative h-dvh w-dvw overflow-hidden bg-[#05080d]">
-	<Map initialCenter={[5.0776, 52.29278]} initialZoom={18.1} initialStyleId="hybrid" />
+	<Map initialCenter={WEESP_DEMO_CENTER} initialZoom={18.45} initialStyleId="hybrid" />
 </div>

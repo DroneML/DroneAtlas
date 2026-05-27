@@ -111,6 +111,8 @@ export interface ProjectLayerDef {
   name: string;
   type: 'rgb' | 'infrared' | 'multispectral' | 'lidar' | 'atmospheric' | 'ml-prediction';
   sourceUrl: string;
+  imageUrl?: string;
+  bounds?: [number, number, number, number];
   colormap?: string;
   opacity?: number;
   rescale?: [number, number];

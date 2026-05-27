@@ -35,11 +35,12 @@
 		'ml-prediction': '#c084fc'
 	};
 
-	const weespShowcaseLayers = new Set(['weesp-thermal', 'weesp-ndvi', 'weesp-ml']);
+	const weespShowcaseLayers = new Set(['weesp-rgb', 'weesp-lidar', 'weesp-multispectral', 'weesp-thermal']);
 	const weespShowcaseOpacity: Record<string, number> = {
-		'weesp-thermal': 0.28,
-		'weesp-ndvi': 0.26,
-		'weesp-ml': 0.42
+		'weesp-rgb': 0.86,
+		'weesp-lidar': 0.56,
+		'weesp-multispectral': 0.38,
+		'weesp-thermal': 0.42
 	};
 
 	onMount(() => {
@@ -148,7 +149,7 @@
 					<div class="mission-kicker">Primary Demo Route</div>
 					<h3>In search of a castle</h3>
 					<p>
-						Enter Weesp to reveal multisensor rasters, DroneML probability, and a live evidence dashboard.
+						Enter Weesp to reveal RGB, LiDAR, multispectral, and thermal image layers on the map.
 					</p>
 				</section>
 
@@ -217,7 +218,7 @@
 
 				{#if $selectedLocation.workflow}
 					<section class="workflow-card">
-						<div class="section-title">DroneML Workflow</div>
+						<div class="section-title">Evidence Workflow</div>
 						{#each $selectedLocation.workflow as step}
 							<div class="workflow-step">
 								<strong>{step.title}</strong>

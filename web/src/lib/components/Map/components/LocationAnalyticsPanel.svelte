@@ -25,7 +25,7 @@
 	const chartMetrics = [
 		{ label: 'Thermal response', value: '24.8 C', trend: '+18%', color: '#ff9b54' },
 		{ label: 'Vegetation contrast', value: '0.71', trend: '+34%', color: '#67e985' },
-		{ label: 'ML confidence', value: '92%', trend: '+11%', color: '#c084fc' }
+		{ label: 'LiDAR relief', value: '0.42 m', trend: '+11%', color: '#ffd166' }
 	];
 
 	function isLayerEnabled(layerId: string): boolean {

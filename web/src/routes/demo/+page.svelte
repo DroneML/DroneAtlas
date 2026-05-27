@@ -6,7 +6,6 @@
 	import { DroneLayer } from '$lib/demo/DroneLayer';
 	import { createTimeline, type Timeline, type Beat } from '$lib/demo/timeline';
 	import { buildBeats, type SceneRefs } from '$lib/demo/beats';
-	import { syntheticHeightfield } from '$lib/demo/mlHeightfield';
 	import SensorReveal from '$lib/demo/components/SensorReveal.svelte';
 	import DetectionCards from '$lib/demo/components/DetectionCards.svelte';
 	import PresenterNotes from '$lib/demo/components/PresenterNotes.svelte';
@@ -14,6 +13,7 @@
 	import SplitReveal from '$lib/demo/components/SplitReveal.svelte';
 	import HeroDrone from '$lib/demo/components/HeroDrone.svelte';
 	import ScientificNarrativeOverlay from '$lib/demo/components/ScientificNarrativeOverlay.svelte';
+	import { WEESP_DEMO_CENTER, WEESP_IMAGE_BOUNDS } from '$lib/demo/weesp';
 
 	let mapContainer: HTMLDivElement;
 	let map: maplibregl.Map | null = null;
@@ -40,9 +40,9 @@
 
 	let sensors = [
 		{ id: 'rgb', label: 'RGB · Visible', color: '#39d2ff', active: false },
-		{ id: 'thermal', label: 'Thermal · LWIR', color: '#ff6b6b', active: false },
-		{ id: 'lidar', label: 'LiDAR · DSM', color: '#06ffa5', active: false },
-		{ id: 'ml', label: 'ML · Prediction', color: '#ffb84d', active: false }
+		{ id: 'lidar', label: 'LiDAR · Relief', color: '#06ffa5', active: false },
+		{ id: 'multispectral', label: 'Multispectral · NDVI', color: '#67e985', active: false },
+		{ id: 'thermal', label: 'Thermal · LWIR', color: '#ff6b6b', active: false }
 	];
 	let detectionCards = [
 		{
@@ -62,23 +62,17 @@
 		}
 	];
 
-	const WEESP: [number, number] = [5.0456, 52.3077];
-	const path = generateFlightPath({ center: WEESP, passes: 5, passLengthKm: 0.42, passSpacingM: 42, baseAlt: 72 });
-
-	// Survey box bbox comes from the flight path, padded slightly.
-	const pad = 0.0003;
-	const surveyBbox: [number, number, number, number] = [
-		path.bbox[0] - pad,
-		path.bbox[1] - pad,
-		path.bbox[2] + pad,
-		path.bbox[3] + pad
-	];
+	const path = generateFlightPath({ center: WEESP_DEMO_CENTER, passes: 5, passLengthKm: 0.18, passSpacingM: 28, baseAlt: 72 });
+	const surveyBbox = WEESP_IMAGE_BOUNDS;
 
 	$: currentBeat = beats[slideIndex];
 	$: showTelemetry = currentBeat?.showTelemetry ?? false;
 	$: isLastSlide = slideIndex === beats.length - 1;
 	$: showSensorStack =
-		currentBeat?.id === 'sensors' || currentBeat?.id === 'process' || currentBeat?.id === 'explore';
+		currentBeat?.id === 'sensors' ||
+		currentBeat?.id === 'process' ||
+		currentBeat?.id === 'explore' ||
+		currentBeat?.id === 'insight';
 	$: showSplitReveal =
 		currentBeat?.id === 'droneml' || currentBeat?.id === 'ml' || currentBeat?.id === 'process';
 	// Hero drone flies alongside the camera through most slides. Hide on the
@@ -296,11 +290,6 @@
 			droneLayer = new DroneLayer({ path });
 			map.addLayer(droneLayer);
 
-			// Build a deterministic Weesp-centred probability surface for the
-			// cinematic finale. It visually represents DroneML output while keeping
-			// the deck independent from network/data parsing failures.
-			preloadHeightfield();
-
 			const refs: SceneRefs = {
 				map,
 				droneLayer,
@@ -336,12 +325,6 @@
 
 		window.addEventListener('keydown', handleKeydown);
 	});
-
-	function preloadHeightfield() {
-		if (!droneLayer) return;
-		const hf = syntheticHeightfield(path.center, 0.0035, 128);
-		droneLayer.setFindingHeightfield(hf, { heightMeters: 44 });
-	}
 
 	onDestroy(() => {
 		window.removeEventListener('keydown', handleKeydown);

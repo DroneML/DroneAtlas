@@ -1,6 +1,7 @@
 <script lang="ts">
 	import { base } from '$app/paths';
 	import ImageSlot from './ImageSlot.svelte';
+	import { WEESP_IMAGE_URLS } from '$lib/demo/weesp';
 
 	export let slideId: string = '';
 	export let progress: number = 0;
@@ -38,10 +39,10 @@
 		field: localImage('02-weesp-field.jpg'),
 		drone: localImage('03-drone-fieldwork.jpg'),
 		satelliteAhn: localImage('04-satellite-ahn.jpg'),
-		optical: localImage('05-optical-annotated.jpg'),
-		thermal: localImage('06-thermal-annotated.jpg'),
-		lidar: localImage('07-lidar-dtm-annotated.jpg'),
-		ndvi: localImage('08-ndvi-annotated.jpg'),
+		optical: WEESP_IMAGE_URLS.rgb,
+		thermal: WEESP_IMAGE_URLS.thermal,
+		lidar: WEESP_IMAGE_URLS.lidar,
+		ndvi: WEESP_IMAGE_URLS.multispectral,
 		allAnomalies: localImage('09-all-anomalies.jpg'),
 		coeus: localImage('10-coeus-probability.png'),
 		qgis: localImage('11-coeus-qgis.jpg'),
@@ -59,17 +60,12 @@
 	];
 
 	const sensorLayers = [
-		{ label: 'Optical cropmarks', src: imageSlots.optical, note: 'Report figs. 18-20' },
-		{
-			label: 'Thermal infrared',
-			src: imageSlots.thermal,
-			note: 'Report figs. 21-22',
-			fallbackSrc: articleImages.thermal
-		},
-		{ label: 'NDVI / multispectral', src: imageSlots.ndvi, note: 'Report figs. 23-24' },
-		{ label: 'LiDAR elevation', src: imageSlots.lidar, note: 'Report figs. 16-17' }
+		{ label: 'High-resolution RGB', src: imageSlots.optical, note: 'Surface base layer' },
+		{ label: 'LiDAR micro-topography', src: imageSlots.lidar, note: 'Buried wall/moat relief' },
+		{ label: 'Multispectral NDVI', src: imageSlots.ndvi, note: 'Vegetation stress' },
+		{ label: 'Thermal infrared', src: imageSlots.thermal, note: 'Heat-capacity contrast' }
 	];
-	const processSteps = ['Drag & drop', 'Organize layers', 'Run DroneML', 'Return probability map'];
+	const processSteps = ['Drop images', 'Organize layers', 'Adjust opacity', 'Inspect signals'];
 </script>
 
 {#if visible && visibleFor.has(slideId)}
@@ -84,7 +80,7 @@
 					{#each [
 						'A medieval castle disappeared from the landscape.',
 						'The traces are still there, but only as faint signals across drone sensor layers.',
-						'DroneML helps archaeologists find those signals.',
+						'Layer toggling helps archaeologists compare those signals.',
 						'DroneATLAS makes that workflow accessible as a research platform.'
 					] as line, i}
 						<p style="--i: {i}">{line}</p>
@@ -157,7 +153,7 @@
 			<section class="hero-card right">
 				<div class="eyebrow">MULTISENSOR EVIDENCE</div>
 				<h2>Many sensors.<br />One hidden site.</h2>
-				<p>Each layer captures a different physical clue: vegetation stress, heat retention, elevation, cropmarks, and soil marks.</p>
+				<p>Each image layer captures a different physical clue: surface context, micro-topography, vegetation stress, and heat retention.</p>
 			</section>
 			<div class="sensor-board">
 				{#each sensorLayers as layer, i}
@@ -165,9 +161,9 @@
 						<div class="sensor-preview-slot">
 							<ImageSlot
 								src={layer.src}
-								fallbackSrc={layer.fallbackSrc ?? ''}
 								label={layer.label}
 								note={layer.note}
+								aspect="1 / 1"
 								variant="sensor"
 							/>
 						</div>
@@ -203,35 +199,35 @@
 
 		{:else if slideId === 'droneml'}
 			<section class="hero-card center">
-				<div class="eyebrow">DRONEML CORE</div>
-				<h2>Find anomaly patterns,<br />not simple objects.</h2>
-				<p>The software supports expert interpretation by surfacing candidate areas across multiband drone data.</p>
+				<div class="eyebrow">LIGHTWEIGHT DEMO</div>
+				<h2>Toggle layers,<br />not heavy processing.</h2>
+				<p>The four georeferenced PNG layers are enough for the demo: compare visual evidence directly on the map.</p>
 			</section>
 			<div class="method-diagram">
-				<div class="method-node data">multisensor<br />GeoTIFFs</div>
+				<div class="method-node data">RGB · LiDAR<br />NDVI · thermal</div>
 				<div class="method-arrow"></div>
-				<div class="method-node engine">DroneML<br />engine</div>
+				<div class="method-node engine">map layer<br />stack</div>
 				<div class="method-arrow"></div>
 				<div class="method-node result">candidate<br />signals</div>
 			</div>
 
 		{:else if slideId === 'ml'}
 			<section class="hero-card left wide">
-				<div class="eyebrow">MACHINE LEARNING PIPELINE</div>
-				<h2>Fast feedback keeps<br />the expert in the loop.</h2>
-				<p>Positive and negative labels train a RandomForest over UNet feature representations, returning a per-pixel probability map.</p>
+				<div class="eyebrow">VISUAL LAYER COMPARISON</div>
+				<h2>Fast toggling keeps<br />the expert in the loop.</h2>
+				<p>Buried remains become legible when RGB, LiDAR, multispectral, and thermal views are compared together.</p>
 			</section>
 			<div class="ml-output-preview">
 				<ImageSlot
-					src={imageSlots.coeus}
-					fallbackSrc={articleImages.coeus}
-					label="CoeusAI probability output"
-					note="Drop 10-coeus-probability.png here"
+					src={imageSlots.lidar}
+					label="LiDAR map layer"
+					note="Local 1:1 image layer"
+					aspect="1 / 1"
 					fit="contain"
 				/>
 			</div>
 			<div class="ml-pipeline">
-				{#each ['positive / negative labels', 'UNet feature space', 'RandomForest classifier', 'probability per pixel'] as step, i}
+				{#each ['high-resolution RGB', 'LiDAR micro-relief', 'NDVI vegetation stress', 'thermal inertia'] as step, i}
 					<div class="pipe-step" style="--i: {i}">{step}</div>
 					{#if i < 3}<div class="pipe-line" style="--i: {i}"></div>{/if}
 				{/each}
@@ -267,8 +263,8 @@
 		{:else if slideId === 'atlas'}
 			<section class="hero-card left">
 				<div class="eyebrow">DRONEATLAS PLATFORM</div>
-				<h2>The DroneML workflow<br />as a research environment.</h2>
-				<p>Researchers work with projects, areas, metadata, layers, processing, maps, and outputs in one polished platform.</p>
+				<h2>The layer workflow<br />as a research environment.</h2>
+				<p>Researchers work with projects, areas, metadata, visual layers, maps, and interpretation targets in one polished platform.</p>
 			</section>
 			<div class="platform-window">
 				<div class="window-bar"><span></span><span></span><span></span><strong>DroneATLAS</strong></div>
@@ -291,8 +287,8 @@
 		{:else if slideId === 'process'}
 			<section class="hero-card right">
 				<div class="eyebrow">PLATFORM WORKFLOW</div>
-				<h2>Drag, drop,<br />process.</h2>
-				<p>Drone imagery moves through organization, geospatial preparation, DroneML processing, and visual inspection.</p>
+				<h2>Drop, stack,<br />compare.</h2>
+				<p>Drone imagery moves through organization, map placement, opacity control, and visual inspection.</p>
 			</section>
 			<div class="process-shot">
 				<ImageSlot
@@ -316,9 +312,9 @@
 
 		{:else if slideId === 'insight'}
 			<section class="cinema-caption right-bottom">
-				<div class="eyebrow">ML RESULT</div>
-				<h2>Prediction becomes<br />archaeological focus.</h2>
-				<p>The raised surface shows where the buried signal may be strongest. Expert interpretation remains decisive.</p>
+				<div class="eyebrow">LAYER INSIGHT</div>
+				<h2>Signals become<br />archaeological focus.</h2>
+				<p>The visual stack shows where multiple sensor clues align. Expert interpretation remains decisive.</p>
 			</section>
 		{/if}
 	</div>

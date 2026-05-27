@@ -1,6 +1,7 @@
 <script lang="ts">
 	import { onMount, onDestroy } from 'svelte';
 	import type { Map as MaplibreMap, LngLatLike } from 'maplibre-gl';
+	import { WEESP_IMAGE_URLS } from '$lib/demo/weesp';
 
 	export let map: MaplibreMap | null = null;
 	export let bbox: [number, number, number, number];
@@ -43,20 +44,18 @@
 {#if visible && width > 10 && height > 10}
 	<div
 		class="split-reveal z-15 pointer-events-none absolute"
-		style="left: {left}px; top: {top}px; width: {width}px; height: {height}px"
+		style="left: {left}px; top: {top}px; width: {width}px; height: {height}px;"
 	>
-		<div class="base rgb"></div>
+		<div class="base rgb"><img src={WEESP_IMAGE_URLS.rgb} alt="" /></div>
 		<div
-			class="overlay ml"
+			class="overlay lidar"
 			style="clip-path: polygon(0 0, {revealPct}% 0, {revealPct}% 100%, 0 100%)"
 		>
-			<div class="blob b1"></div>
-			<div class="blob b2"></div>
-			<div class="blob b3"></div>
+			<img src={WEESP_IMAGE_URLS.lidar} alt="" />
 		</div>
 		<div class="divider" style="left: {revealPct}%"></div>
 		<div class="rgb-lbl label">RGB</div>
-		<div class="ml-lbl label" style="opacity: {progress > 0.15 ? 1 : 0}">ML · CONFIDENCE</div>
+		<div class="lidar-lbl label" style="opacity: {progress > 0.15 ? 1 : 0}">LiDAR · RELIEF</div>
 		<div class="frame"></div>
 	</div>
 {/if}
@@ -70,60 +69,19 @@
 		position: absolute;
 		inset: 0;
 		border-radius: 4px;
+		overflow: hidden;
+	}
+	.base img,
+	.overlay img {
+		width: 100%;
+		height: 100%;
+		object-fit: fill;
 	}
 	.rgb {
-		background: repeating-linear-gradient(
-				90deg,
-				rgba(140, 160, 110, 0.55) 0 14%,
-				rgba(120, 140, 95, 0.4) 14% 28%
-			),
-			linear-gradient(135deg, #6b8a47 0%, #7a9358 50%, #8ca46a 100%);
-		mix-blend-mode: multiply;
+		mix-blend-mode: normal;
 	}
-	.ml {
-		background: linear-gradient(135deg, rgba(10, 0, 50, 0.75), rgba(60, 0, 90, 0.4));
+	.lidar {
 		mix-blend-mode: screen;
-	}
-	.blob {
-		position: absolute;
-		border-radius: 50%;
-		filter: blur(12px);
-	}
-	.b1 {
-		left: 30%;
-		top: 38%;
-		width: 26%;
-		height: 20%;
-		background: radial-gradient(
-			ellipse,
-			rgba(250, 240, 50, 0.95),
-			rgba(240, 130, 60, 0.6) 40%,
-			transparent 75%
-		);
-	}
-	.b2 {
-		left: 54%;
-		top: 50%;
-		width: 22%;
-		height: 18%;
-		background: radial-gradient(
-			ellipse,
-			rgba(245, 90, 150, 0.9),
-			rgba(180, 40, 120, 0.5) 50%,
-			transparent 80%
-		);
-	}
-	.b3 {
-		left: 42%;
-		top: 24%;
-		width: 16%;
-		height: 14%;
-		background: radial-gradient(
-			ellipse,
-			rgba(255, 180, 80, 0.85),
-			rgba(220, 60, 80, 0.45) 50%,
-			transparent 80%
-		);
 	}
 	.divider {
 		position: absolute;
@@ -150,7 +108,7 @@
 	.rgb-lbl {
 		left: 8px;
 	}
-	.ml-lbl {
+	.lidar-lbl {
 		right: 8px;
 		color: #ffd066;
 	}
