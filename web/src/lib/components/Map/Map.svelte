@@ -38,7 +38,7 @@
 		toggleProjectLayer,
 		updateProjectLayerOpacity
 	} from '$lib/stores/projects.store';
-	import { WEESP_DEMO_CENTER } from '$lib/demo/weesp';
+	import { WEESP_DEMO_CENTER, WEESP_IMAGE_BOUNDS } from '$lib/demo/weesp';
 	import { get } from 'svelte/store';
 	import type { ProjectLocation, RasterLayer } from '$lib/types';
 
@@ -611,18 +611,12 @@
 		moveSiteReconstructionLayersToTop();
 	}
 
-	function buildSiteReconstructionData(center: [number, number]) {
-		const rotation = -26;
-		const footprintScale = 0.34;
-		const heightScale = 0.42;
-		const modelOffset: [number, number] = [-2, -5];
-		const placePoint = ([x, y]: [number, number]) =>
-			localMetersToLngLat(
-				center,
-				x * footprintScale + modelOffset[0],
-				y * footprintScale + modelOffset[1],
-				rotation
-			);
+	function buildSiteReconstructionData(_center: [number, number]) {
+		const uvToLngLat = (u: number, v: number): [number, number] => {
+			const [west, south, east, north] = WEESP_IMAGE_BOUNDS;
+			return [west + u * (east - west), north - v * (north - south)];
+		};
+
 		const polygon = (
 			id: string,
 			points: Array<[number, number]>,
@@ -631,103 +625,83 @@
 			base = 1
 		) => ({
 			type: 'Feature',
-			properties: { id, height: height * heightScale, base: base * heightScale, color },
+			properties: { id, height, base, color },
 			geometry: {
 				type: 'Polygon',
-				coordinates: [[...points, points[0]].map(placePoint)]
+				coordinates: [[...points, points[0]].map(([u, v]) => uvToLngLat(u, v))]
 			}
 		});
 
-		const box = (id: string, x: number, y: number, width: number, depth: number, height: number, color?: string) =>
+		const box = (id: string, left: number, top: number, right: number, bottom: number, height: number, color?: string) =>
 			polygon(
 				id,
 				[
-					[x - width / 2, y - depth / 2],
-					[x + width / 2, y - depth / 2],
-					[x + width / 2, y + depth / 2],
-					[x - width / 2, y + depth / 2]
+					[left, top],
+					[right, top],
+					[right, bottom],
+					[left, bottom]
 				],
 				height,
 				color
 			);
+
+		const rectLine = (id: string, className: string, left: number, top: number, right: number, bottom: number) =>
+			line(id, className, [
+				[left, top],
+				[right, top],
+				[right, bottom],
+				[left, bottom]
+			]);
 
 		const line = (id: string, className: string, points: Array<[number, number]>, close = true) => ({
 			type: 'Feature',
 			properties: { id, class: className },
 			geometry: {
 				type: 'LineString',
-				coordinates: (close ? [...points, points[0]] : points).map(placePoint)
+				coordinates: (close ? [...points, points[0]] : points).map(([u, v]) => uvToLngLat(u, v))
 			}
 		});
 
-		const point = (id: string, x: number, y: number) => ({
+		const point = (id: string, u: number, v: number) => ({
 			type: 'Feature',
 			properties: { id, class: 'marker' },
-			geometry: { type: 'Point', coordinates: placePoint([x, y]) }
+			geometry: { type: 'Point', coordinates: uvToLngLat(u, v) }
 		});
 
 		return {
 			type: 'FeatureCollection',
 			features: [
-				box('tower', 0, 0, 54, 54, 38, '#cc2cff'),
-				box('inner-keep', 0, 0, 30, 30, 52, '#ff2da8'),
-				box('south-hall', 48, -38, 82, 54, 24, '#bd246f'),
-				box('gate-wing', 30, -80, 34, 58, 20, '#bd246f'),
-				box('east-wall', 78, -8, 16, 86, 28, '#d33487'),
-				box('pillar-nw', -38, 38, 12, 12, 48, '#ff54c4'),
-				box('pillar-ne', 38, 38, 12, 12, 48, '#ff54c4'),
-				box('pillar-sw', -38, -38, 12, 12, 44, '#ff54c4'),
-				box('pillar-se', 96, -72, 12, 12, 44, '#ff54c4'),
-				line('outer-moat', 'moat', [
-					[-150, 82],
-					[-46, 126],
-					[106, 100],
-					[152, 38],
-					[138, -124],
-					[-28, -160],
-					[-154, -88],
-					[-176, 16]
-				]),
-				line('inner-moat', 'moat', [
-					[-100, 48],
-					[-28, 84],
-					[82, 66],
-					[108, 20],
-					[90, -96],
-					[-22, -120],
-					[-106, -64],
-					[-122, 12]
-				]),
-				line('tower-outline', 'wall-outline', [
-					[-34, -34],
-					[34, -34],
-					[34, 34],
-					[-34, 34]
-				]),
-				line('hall-outline', 'wall-outline', [
-					[2, -70],
-					[94, -70],
-					[94, -4],
-					[2, -4]
-				]),
+				box('west-tower', 0.39, 0.44, 0.49, 0.55, 14, '#cc2cff'),
+				box('inner-keep', 0.53, 0.39, 0.64, 0.5, 20, '#ff2da8'),
+				box('south-hall', 0.44, 0.55, 0.64, 0.7, 10, '#bd246f'),
+				box('gate-wing', 0.36, 0.66, 0.47, 0.74, 8, '#bd246f'),
+				box('east-wall', 0.69, 0.45, 0.75, 0.62, 12, '#d33487'),
+				box('pillar-nw', 0.265, 0.215, 0.285, 0.235, 14, '#ff54c4'),
+				box('pillar-ne', 0.83, 0.215, 0.85, 0.235, 14, '#ff54c4'),
+				box('pillar-sw', 0.265, 0.81, 0.285, 0.83, 12, '#ff54c4'),
+				box('pillar-se', 0.83, 0.81, 0.85, 0.83, 12, '#ff54c4'),
+				rectLine('outer-moat', 'moat', 0.27, 0.22, 0.84, 0.82),
+				rectLine('inner-moat', 'moat', 0.4, 0.35, 0.76, 0.68),
+				rectLine('tower-outline', 'wall-outline', 0.39, 0.44, 0.49, 0.55),
+				rectLine('keep-outline', 'wall-outline', 0.53, 0.39, 0.64, 0.5),
+				rectLine('hall-outline', 'wall-outline', 0.44, 0.55, 0.64, 0.7),
 				line('trench-signal', 'trench', [
-					[-32, -8],
-					[6, 22],
-					[42, 2],
-					[50, -34],
-					[8, -52],
-					[-36, -38]
+					[0.39, 0.49],
+					[0.51, 0.45],
+					[0.62, 0.54],
+					[0.54, 0.65],
+					[0.43, 0.6]
 				]),
 				...[
-					[-52, 4],
-					[-20, 26],
-					[20, 32],
-					[56, 10],
-					[74, -28],
-					[58, -68],
-					[16, -88],
-					[-24, -70]
-				].map(([x, y], i) => point(`marker-${i}`, x, y))
+					[0.27, 0.22],
+					[0.84, 0.22],
+					[0.84, 0.82],
+					[0.27, 0.82],
+					[0.4, 0.35],
+					[0.76, 0.35],
+					[0.76, 0.68],
+					[0.4, 0.68]
+				].map(([u, v], i) => point(`marker-${i}`, u, v))
 			]
 		};
 	}
