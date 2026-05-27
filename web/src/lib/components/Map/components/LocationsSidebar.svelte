@@ -35,12 +35,19 @@
 		'ml-prediction': '#c084fc'
 	};
 
-	const weespShowcaseLayers = new Set(['weesp-rgb', 'weesp-lidar', 'weesp-multispectral', 'weesp-thermal']);
+	const weespShowcaseLayers = new Set([
+		'weesp-rgb',
+		'weesp-lidar',
+		'weesp-multispectral',
+		'weesp-thermal',
+		'weesp-probability'
+	]);
 	const weespShowcaseOpacity: Record<string, number> = {
 		'weesp-rgb': 0.86,
 		'weesp-lidar': 0.56,
 		'weesp-multispectral': 0.38,
-		'weesp-thermal': 0.42
+		'weesp-thermal': 0.42,
+		'weesp-probability': 0.62
 	};
 
 	onMount(() => {
@@ -149,7 +156,7 @@
 					<div class="mission-kicker">Primary Demo Route</div>
 					<h3>In search of a castle</h3>
 					<p>
-						Enter Weesp to reveal RGB, LiDAR, multispectral, and thermal image layers on the map.
+						Enter Weesp to reveal RGB, LiDAR, multispectral, thermal, and anomaly probability layers on the map.
 					</p>
 				</section>
 

@@ -201,7 +201,7 @@
 			<section class="hero-card center">
 				<div class="eyebrow">LIGHTWEIGHT DEMO</div>
 				<h2>Toggle layers,<br />not heavy processing.</h2>
-				<p>The four georeferenced PNG layers are enough for the demo: compare visual evidence directly on the map.</p>
+				<p>The four georeferenced PNG layers provide the visual base; the top probability raster adds numeric anomaly predictions on hover.</p>
 			</section>
 			<div class="method-diagram">
 				<div class="method-node data">RGB · LiDAR<br />NDVI · thermal</div>

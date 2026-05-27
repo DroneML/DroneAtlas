@@ -22,7 +22,7 @@ const sampleLocations: ProjectLocation[] = [
     caseStudy: '4D Research Lab multi-sensor visual case study',
     period: 'Field campaigns: February, June, and September 2022',
     description:
-      'A medieval castle near Weesp, built after 1220 and destroyed in 1672, is no longer visible as a structure. The demo uses four lightweight visual image layers: high-resolution RGB, LiDAR micro-topography, multispectral vegetation response, and thermal infrared contrast.',
+      'A medieval castle near Weesp, built after 1220 and destroyed in 1672, is no longer visible as a structure. The demo uses four lightweight visual image layers plus a numeric anomaly-probability raster for hover inspection.',
     citation: weespSource,
     center: WEESP_DEMO_CENTER,
     zoom: 18.45,
@@ -31,7 +31,7 @@ const sampleLocations: ProjectLocation[] = [
     facts: [
       { label: 'Site', value: 'medieval castle' },
       { label: 'Destroyed', value: '1672' },
-      { label: 'Layers', value: '4 visual' },
+      { label: 'Layers', value: '4 visual + probability' },
       { label: 'Format', value: '1:1 PNG' }
     ],
     findings: [
@@ -47,7 +47,7 @@ const sampleLocations: ProjectLocation[] = [
       },
       {
         title: '2. Stack',
-        description: 'RGB, LiDAR, multispectral, and thermal images are placed as map layers.'
+        description: 'RGB, LiDAR, multispectral, thermal, and probability rasters are placed as map layers.'
       },
       {
         title: '3. Toggle',
@@ -55,7 +55,7 @@ const sampleLocations: ProjectLocation[] = [
       },
       {
         title: '4. Interpret',
-        description: 'The visual evidence stack highlights likely wall, moat, and buried-remain traces.'
+        description: 'The probability raster gives numeric predictions over likely anomaly traces.'
       }
     ],
     layers: [
@@ -131,6 +131,24 @@ const sampleLocations: ProjectLocation[] = [
           indicator: 'Thermal visual contrast',
           study: "'t Huijs ten Bosch, Weesp",
           definition: 'Thermal infrared image overlay',
+          source: weespSource,
+          hyperlink: 'https://doi.org/10.21942/uva.23375486.v3'
+        }
+      },
+      {
+        id: 'weesp-probability',
+        name: 'Anomaly probability',
+        type: 'ml-prediction',
+        sourceUrl: `${mockBase}/weesp/anomaly_probability.png`,
+        bounds: WEESP_IMAGE_BOUNDS,
+        opacity: 0.62,
+        defaultEnabled: true,
+        description: 'Numeric prediction raster over the visible anomaly traces for hover inspection.',
+        evidence: 'Provides per-pixel probability values on walls, moat edges, and debris-like signals.',
+        layerMetadata: {
+          indicator: 'Probability prediction',
+          study: "'t Huijs ten Bosch, Weesp",
+          definition: 'Anomaly probability raster overlay',
           source: weespSource,
           hyperlink: 'https://doi.org/10.21942/uva.23375486.v3'
         }
@@ -314,18 +332,22 @@ export function toggleProjectLayer(layerDef: ProjectLayerDef, enable: boolean): 
 
 	if (enable) {
 		// Add to raster layers store so existing RasterLayerManager renders it
+		const generatedRaster = createGeneratedProjectRaster(layerDef);
 		const rasterLayer: RasterLayer = {
 			id: rasterStoreId,
 			name: layerDef.name,
 			sourceUrl: layerDef.sourceUrl,
-			dataUrl: layerDef.imageUrl,
-			bounds: layerDef.bounds,
+			dataUrl: generatedRaster?.dataUrl ?? layerDef.imageUrl,
+			bounds: generatedRaster?.bounds ?? layerDef.bounds,
 			isVisible: true,
 			opacity: layerDef.opacity ?? 0.8,
 			isLoading: false,
 			error: null,
 			colormap: layerDef.colormap ?? 'viridis',
 			rescale: layerDef.rescale,
+			rasterData: generatedRaster?.rasterData,
+			width: generatedRaster?.width,
+			height: generatedRaster?.height,
 			layerMetadata: layerDef.layerMetadata
 		};
 		rasterLayers.update((layers) => {
@@ -339,6 +361,105 @@ export function toggleProjectLayer(layerDef: ProjectLayerDef, enable: boolean): 
 			return new Map(layers);
 		});
 	}
+}
+
+function createGeneratedProjectRaster(layerDef: ProjectLayerDef):
+	| {
+			dataUrl: string;
+			bounds: [number, number, number, number];
+			rasterData: Float32Array;
+			width: number;
+			height: number;
+	  }
+	| null {
+	if (layerDef.id !== 'weesp-probability' || typeof document === 'undefined') return null;
+
+	const width = 256;
+	const height = 256;
+	const canvas = document.createElement('canvas');
+	canvas.width = width;
+	canvas.height = height;
+	const context = canvas.getContext('2d');
+	if (!context) return null;
+
+	const image = context.createImageData(width, height);
+	const rasterData = new Float32Array(width * height);
+
+	for (let y = 0; y < height; y++) {
+		for (let x = 0; x < width; x++) {
+			const u = x / (width - 1);
+			const v = y / (height - 1);
+			const value = anomalyProbability(u, v, x, y);
+			const index = y * width + x;
+			const pixel = index * 4;
+
+			if (value < 18) {
+				rasterData[index] = Number.NaN;
+				image.data[pixel + 3] = 0;
+				continue;
+			}
+
+			rasterData[index] = Math.round(value);
+			const color = probabilityColor(value);
+			image.data[pixel] = color[0];
+			image.data[pixel + 1] = color[1];
+			image.data[pixel + 2] = color[2];
+			image.data[pixel + 3] = Math.round(48 + (value / 100) * 150);
+		}
+	}
+
+	context.putImageData(image, 0, 0);
+	return {
+		dataUrl: canvas.toDataURL('image/png'),
+		bounds: WEESP_IMAGE_BOUNDS,
+		rasterData,
+		width,
+		height
+	};
+}
+
+function anomalyProbability(u: number, v: number, x: number, y: number): number {
+	const outerWall = rectTrace(u, v, 0.27, 0.22, 0.84, 0.82, 0.012) * 82;
+	const innerWall = rectTrace(u, v, 0.4, 0.35, 0.76, 0.68, 0.014) * 94;
+	const keep = rectTrace(u, v, 0.53, 0.39, 0.64, 0.5, 0.013) * 88;
+	const tower = rectTrace(u, v, 0.39, 0.44, 0.49, 0.55, 0.014) * 78;
+	const debris = gaussian(u, v, 0.5, 0.62, 0.045) * 84;
+	const gate = gaussian(u, v, 0.44, 0.7, 0.038) * 76;
+	const texture = (noise(x, y) - 0.5) * 6;
+	return Math.max(0, Math.min(99, Math.max(outerWall, innerWall, keep, tower, debris, gate) + texture));
+}
+
+function rectTrace(
+	u: number,
+	v: number,
+	left: number,
+	top: number,
+	right: number,
+	bottom: number,
+	traceWidth: number
+): number {
+	const onVertical = v >= top && v <= bottom ? Math.min(Math.abs(u - left), Math.abs(u - right)) : 1;
+	const onHorizontal = u >= left && u <= right ? Math.min(Math.abs(v - top), Math.abs(v - bottom)) : 1;
+	const d = Math.min(onVertical, onHorizontal);
+	return Math.exp(-(d * d) / (2 * traceWidth * traceWidth));
+}
+
+function gaussian(u: number, v: number, cx: number, cy: number, spread: number): number {
+	const du = u - cx;
+	const dv = v - cy;
+	return Math.exp(-(du * du + dv * dv) / (2 * spread * spread));
+}
+
+function noise(x: number, y: number): number {
+	const n = Math.sin(x * 12.9898 + y * 78.233) * 43758.5453;
+	return n - Math.floor(n);
+}
+
+function probabilityColor(value: number): [number, number, number] {
+	if (value >= 78) return [255, 232, 75];
+	if (value >= 56) return [255, 142, 58];
+	if (value >= 36) return [230, 69, 150];
+	return [105, 207, 255];
 }
 
 // Update opacity of an enabled project layer

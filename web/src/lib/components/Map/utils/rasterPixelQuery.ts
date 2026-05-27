@@ -171,15 +171,17 @@ export function findVisibleRasterLayerAtCoordinate(
   lng: number,
   lat: number
 ): RasterLayer | null {
-  // For global raster layers, we need to check if the click is within data range
-  // even if technically outside the stored bounds
-  for (const [, layer] of rasterLayers) {
+  // Prefer the top-most numeric raster. Image overlays can have bounds but no
+  // rasterData, so they should not intercept probability hover/click reads.
+  const layers = Array.from(rasterLayers.values()).reverse();
+  for (const layer of layers) {
     if (layer.isVisible && layer.bounds && !layer.isLoading && !layer.error) {
       const [west, south, east, north] = layer.bounds;
 
       // Check if coordinate is within layer bounds
       if (lng >= west && lng <= east && lat >= south && lat <= north) {
-        return layer;
+        const value = getRasterValueAtCoordinateFast(layer, lng, lat);
+        if (value !== null) return layer;
       }
     }
   }

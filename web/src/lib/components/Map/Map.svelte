@@ -81,7 +81,8 @@
 		'weesp-rgb': 0.86,
 		'weesp-lidar': 0.56,
 		'weesp-multispectral': 0.38,
-		'weesp-thermal': 0.42
+		'weesp-thermal': 0.42,
+		'weesp-probability': 0.62
 	};
 	let annotationDrawingEnabled = false;
 	let annotationIsDrawing = false;
@@ -173,10 +174,21 @@
 			const value = getRasterValueAtCoordinateFast(visibleRasterLayer, coords[0], coords[1]);
 			debugInfo.hoverInRaster = true;
 			debugInfo.hoverRasterValue = value;
+			debugInfo.hoverRasterName = visibleRasterLayer.name;
 		} else {
 			debugInfo.hoverInRaster = false;
 			debugInfo.hoverRasterValue = null;
+			debugInfo.hoverRasterName = null;
 		}
+	}
+
+	function isProbabilityLayerName(name: string | null): boolean {
+		return Boolean(name?.toLowerCase().includes('probability'));
+	}
+
+	function formatHoverRasterValue(value: number, name: string | null): string {
+		if (isProbabilityLayerName(name)) return `${Math.round(value)}%`;
+		return String(value);
 	}
 
 	// Slower update for debug panel details
@@ -484,9 +496,9 @@
 				filter: ['==', ['get', 'class'], 'moat'],
 				paint: {
 					'line-color': '#39d2ff',
-					'line-width': 12,
-					'line-blur': 8,
-					'line-opacity': 0.5
+					'line-width': 6,
+					'line-blur': 5,
+					'line-opacity': 0.42
 				}
 			} as any);
 		}
@@ -499,7 +511,7 @@
 				filter: ['==', ['get', 'class'], 'moat'],
 				paint: {
 					'line-color': '#39d2ff',
-					'line-width': 3.5,
+					'line-width': 2,
 					'line-opacity': 0.95
 				}
 			} as any);
@@ -515,7 +527,7 @@
 					'fill-extrusion-color': ['get', 'color'],
 					'fill-extrusion-height': ['get', 'height'],
 					'fill-extrusion-base': ['get', 'base'],
-					'fill-extrusion-opacity': 0.86,
+					'fill-extrusion-opacity': 0.58,
 					'fill-extrusion-vertical-gradient': true
 				}
 			} as any);
@@ -529,7 +541,7 @@
 				filter: ['==', ['get', 'class'], 'wall-outline'],
 				paint: {
 					'line-color': '#ff2da8',
-					'line-width': 4,
+					'line-width': 2.2,
 					'line-opacity': 1
 				}
 			} as any);
@@ -543,7 +555,7 @@
 				filter: ['==', ['get', 'class'], 'trench'],
 				paint: {
 					'line-color': '#fff454',
-					'line-width': 3,
+					'line-width': 1.8,
 					'line-opacity': 0.96
 				}
 			} as any);
@@ -557,7 +569,7 @@
 				filter: ['==', ['get', 'class'], 'marker'],
 				paint: {
 					'circle-color': '#fff454',
-					'circle-radius': 5,
+					'circle-radius': 3.5,
 					'circle-blur': 0.15,
 					'circle-opacity': 0.98,
 					'circle-stroke-color': '#211900',
@@ -601,6 +613,16 @@
 
 	function buildSiteReconstructionData(center: [number, number]) {
 		const rotation = -26;
+		const footprintScale = 0.34;
+		const heightScale = 0.42;
+		const modelOffset: [number, number] = [-2, -5];
+		const placePoint = ([x, y]: [number, number]) =>
+			localMetersToLngLat(
+				center,
+				x * footprintScale + modelOffset[0],
+				y * footprintScale + modelOffset[1],
+				rotation
+			);
 		const polygon = (
 			id: string,
 			points: Array<[number, number]>,
@@ -609,10 +631,10 @@
 			base = 1
 		) => ({
 			type: 'Feature',
-			properties: { id, height, base, color },
+			properties: { id, height: height * heightScale, base: base * heightScale, color },
 			geometry: {
 				type: 'Polygon',
-				coordinates: [[...points, points[0]].map(([x, y]) => localMetersToLngLat(center, x, y, rotation))]
+				coordinates: [[...points, points[0]].map(placePoint)]
 			}
 		});
 
@@ -634,16 +656,14 @@
 			properties: { id, class: className },
 			geometry: {
 				type: 'LineString',
-				coordinates: (close ? [...points, points[0]] : points).map(([x, y]) =>
-					localMetersToLngLat(center, x, y, rotation)
-				)
+				coordinates: (close ? [...points, points[0]] : points).map(placePoint)
 			}
 		});
 
 		const point = (id: string, x: number, y: number) => ({
 			type: 'Feature',
 			properties: { id, class: 'marker' },
-			geometry: { type: 'Point', coordinates: localMetersToLngLat(center, x, y, rotation) }
+			geometry: { type: 'Point', coordinates: placePoint([x, y]) }
 		});
 
 		return {
@@ -1114,7 +1134,8 @@
 			style="left: {debugInfo.hoverMousePos.x}px; top: {debugInfo.hoverMousePos
 				.y}px; transform: translate(10px, -115%);"
 		>
-			Value: {debugInfo.hoverRasterValue}
+			{isProbabilityLayerName(debugInfo.hoverRasterName) ? 'Prediction' : 'Value'}:
+			{formatHoverRasterValue(debugInfo.hoverRasterValue, debugInfo.hoverRasterName)}
 		</div>
 	{/if}
 

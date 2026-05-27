@@ -23,7 +23,7 @@
 	};
 
 	const chartMetrics = [
-		{ label: 'Thermal response', value: '24.8 C', trend: '+18%', color: '#ff9b54' },
+		{ label: 'Prediction peak', value: '99%', trend: 'hover', color: '#c084fc' },
 		{ label: 'Vegetation contrast', value: '0.71', trend: '+34%', color: '#67e985' },
 		{ label: 'LiDAR relief', value: '0.42 m', trend: '+11%', color: '#ffd166' }
 	];
