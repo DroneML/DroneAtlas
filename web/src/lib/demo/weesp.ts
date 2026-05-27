@@ -16,6 +16,29 @@ export const WEESP_IMAGE_BOUNDS: [number, number, number, number] = [
 	WEESP_IMAGE_CENTER[1] + WEESP_IMAGE_HALF_LAT
 ];
 
+const WEESP_SITE_UV_CENTER: [number, number] = [0.56, 0.515];
+const WEESP_SITE_ROTATION_DEG = -20;
+
+function rotateWeespUv(u: number, v: number, degrees: number): [number, number] {
+	const radians = (degrees * Math.PI) / 180;
+	const cos = Math.cos(radians);
+	const sin = Math.sin(radians);
+	const du = u - WEESP_SITE_UV_CENTER[0];
+	const dv = v - WEESP_SITE_UV_CENTER[1];
+	return [
+		WEESP_SITE_UV_CENTER[0] + du * cos - dv * sin,
+		WEESP_SITE_UV_CENTER[1] + du * sin + dv * cos
+	];
+}
+
+export function weespSiteUvToImageUv(u: number, v: number): [number, number] {
+	return rotateWeespUv(u, v, WEESP_SITE_ROTATION_DEG);
+}
+
+export function weespImageUvToSiteUv(u: number, v: number): [number, number] {
+	return rotateWeespUv(u, v, -WEESP_SITE_ROTATION_DEG);
+}
+
 const weespImageBase = `${base}/weesp_images`;
 
 export const WEESP_IMAGE_URLS = {

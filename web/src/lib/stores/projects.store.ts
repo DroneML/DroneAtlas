@@ -3,7 +3,12 @@ import { base } from '$app/paths';
 import type { ProjectLocation, ProjectLayerDef } from '$lib/types';
 import { rasterLayers } from '$lib/stores/raster.store';
 import type { RasterLayer } from '$lib/types';
-import { WEESP_DEMO_CENTER, WEESP_IMAGE_BOUNDS, WEESP_IMAGE_URLS } from '$lib/demo/weesp';
+import {
+	WEESP_DEMO_CENTER,
+	WEESP_IMAGE_BOUNDS,
+	WEESP_IMAGE_URLS,
+	weespImageUvToSiteUv
+} from '$lib/demo/weesp';
 
 // Mock data served from static/mock/ during development.
 // Replace with R2 URLs (e.g. https://pub-xxx.r2.dev/cogs/projects/...) for production.
@@ -419,14 +424,19 @@ function createGeneratedProjectRaster(layerDef: ProjectLayerDef):
 }
 
 function anomalyProbability(u: number, v: number, x: number, y: number): number {
-	const outerWall = rectTrace(u, v, 0.27, 0.22, 0.84, 0.82, 0.012) * 82;
-	const innerWall = rectTrace(u, v, 0.4, 0.35, 0.76, 0.68, 0.014) * 94;
-	const keep = rectTrace(u, v, 0.53, 0.39, 0.64, 0.5, 0.013) * 88;
-	const tower = rectTrace(u, v, 0.39, 0.44, 0.49, 0.55, 0.014) * 78;
-	const debris = gaussian(u, v, 0.5, 0.62, 0.045) * 84;
-	const gate = gaussian(u, v, 0.44, 0.7, 0.038) * 76;
+	const [siteU, siteV] = weespImageUvToSiteUv(u, v);
+	const outerWall = rectTrace(siteU, siteV, 0.3, 0.23, 0.82, 0.8, 0.012) * 82;
+	const innerWall = rectTrace(siteU, siteV, 0.39, 0.285, 0.765, 0.725, 0.014) * 94;
+	const keep = rectTrace(siteU, siteV, 0.545, 0.405, 0.63, 0.49, 0.013) * 88;
+	const tower = rectTrace(siteU, siteV, 0.405, 0.455, 0.485, 0.535, 0.014) * 78;
+	const hall = rectTrace(siteU, siteV, 0.445, 0.575, 0.625, 0.685, 0.012) * 72;
+	const debris = gaussian(siteU, siteV, 0.5, 0.62, 0.045) * 84;
+	const gate = gaussian(siteU, siteV, 0.44, 0.7, 0.038) * 76;
 	const texture = (noise(x, y) - 0.5) * 6;
-	return Math.max(0, Math.min(99, Math.max(outerWall, innerWall, keep, tower, debris, gate) + texture));
+	return Math.max(
+		0,
+		Math.min(99, Math.max(outerWall, innerWall, keep, tower, hall, debris, gate) + texture)
+	);
 }
 
 function rectTrace(

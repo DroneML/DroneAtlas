@@ -38,7 +38,7 @@
 		toggleProjectLayer,
 		updateProjectLayerOpacity
 	} from '$lib/stores/projects.store';
-	import { WEESP_DEMO_CENTER, WEESP_IMAGE_BOUNDS } from '$lib/demo/weesp';
+	import { WEESP_DEMO_CENTER, WEESP_IMAGE_BOUNDS, weespSiteUvToImageUv } from '$lib/demo/weesp';
 	import { get } from 'svelte/store';
 	import type { ProjectLocation, RasterLayer } from '$lib/types';
 
@@ -73,9 +73,7 @@
 		'weesp-site-moat-glow',
 		'weesp-site-moat-line',
 		'weesp-site-buildings',
-		'weesp-site-wall-outlines',
-		'weesp-site-trenches',
-		'weesp-site-markers'
+		'weesp-site-wall-outlines'
 	];
 	const weespLayerOpacity: Record<string, number> = {
 		'weesp-rgb': 0.86,
@@ -527,7 +525,7 @@
 					'fill-extrusion-color': ['get', 'color'],
 					'fill-extrusion-height': ['get', 'height'],
 					'fill-extrusion-base': ['get', 'base'],
-					'fill-extrusion-opacity': 0.58,
+					'fill-extrusion-opacity': 0.42,
 					'fill-extrusion-vertical-gradient': true
 				}
 			} as any);
@@ -543,37 +541,6 @@
 					'line-color': '#ff2da8',
 					'line-width': 2.2,
 					'line-opacity': 1
-				}
-			} as any);
-		}
-
-		if (!map.getLayer('weesp-site-trenches')) {
-			map.addLayer({
-				id: 'weesp-site-trenches',
-				type: 'line',
-				source: siteReconstructionSourceId,
-				filter: ['==', ['get', 'class'], 'trench'],
-				paint: {
-					'line-color': '#fff454',
-					'line-width': 1.8,
-					'line-opacity': 0.96
-				}
-			} as any);
-		}
-
-		if (!map.getLayer('weesp-site-markers')) {
-			map.addLayer({
-				id: 'weesp-site-markers',
-				type: 'circle',
-				source: siteReconstructionSourceId,
-				filter: ['==', ['get', 'class'], 'marker'],
-				paint: {
-					'circle-color': '#fff454',
-					'circle-radius': 3.5,
-					'circle-blur': 0.15,
-					'circle-opacity': 0.98,
-					'circle-stroke-color': '#211900',
-					'circle-stroke-width': 1.5
 				}
 			} as any);
 		}
@@ -613,8 +580,9 @@
 
 	function buildSiteReconstructionData(_center: [number, number]) {
 		const uvToLngLat = (u: number, v: number): [number, number] => {
+			const [imageU, imageV] = weespSiteUvToImageUv(u, v);
 			const [west, south, east, north] = WEESP_IMAGE_BOUNDS;
-			return [west + u * (east - west), north - v * (north - south)];
+			return [west + imageU * (east - west), north - imageV * (north - south)];
 		};
 
 		const polygon = (
@@ -662,62 +630,21 @@
 			}
 		});
 
-		const point = (id: string, u: number, v: number) => ({
-			type: 'Feature',
-			properties: { id, class: 'marker' },
-			geometry: { type: 'Point', coordinates: uvToLngLat(u, v) }
-		});
-
 		return {
 			type: 'FeatureCollection',
 			features: [
-				box('west-tower', 0.39, 0.44, 0.49, 0.55, 14, '#cc2cff'),
-				box('inner-keep', 0.53, 0.39, 0.64, 0.5, 20, '#ff2da8'),
-				box('south-hall', 0.44, 0.55, 0.64, 0.7, 10, '#bd246f'),
-				box('gate-wing', 0.36, 0.66, 0.47, 0.74, 8, '#bd246f'),
-				box('east-wall', 0.69, 0.45, 0.75, 0.62, 12, '#d33487'),
-				box('pillar-nw', 0.265, 0.215, 0.285, 0.235, 14, '#ff54c4'),
-				box('pillar-ne', 0.83, 0.215, 0.85, 0.235, 14, '#ff54c4'),
-				box('pillar-sw', 0.265, 0.81, 0.285, 0.83, 12, '#ff54c4'),
-				box('pillar-se', 0.83, 0.81, 0.85, 0.83, 12, '#ff54c4'),
-				rectLine('outer-moat', 'moat', 0.27, 0.22, 0.84, 0.82),
-				rectLine('inner-moat', 'moat', 0.4, 0.35, 0.76, 0.68),
-				rectLine('tower-outline', 'wall-outline', 0.39, 0.44, 0.49, 0.55),
-				rectLine('keep-outline', 'wall-outline', 0.53, 0.39, 0.64, 0.5),
-				rectLine('hall-outline', 'wall-outline', 0.44, 0.55, 0.64, 0.7),
-				line('trench-signal', 'trench', [
-					[0.39, 0.49],
-					[0.51, 0.45],
-					[0.62, 0.54],
-					[0.54, 0.65],
-					[0.43, 0.6]
-				]),
-				...[
-					[0.27, 0.22],
-					[0.84, 0.22],
-					[0.84, 0.82],
-					[0.27, 0.82],
-					[0.4, 0.35],
-					[0.76, 0.35],
-					[0.76, 0.68],
-					[0.4, 0.68]
-				].map(([u, v], i) => point(`marker-${i}`, u, v))
+				box('west-tower', 0.405, 0.455, 0.485, 0.535, 7, '#cc2cff'),
+				box('inner-keep', 0.545, 0.405, 0.63, 0.49, 10, '#ff2da8'),
+				box('south-hall', 0.445, 0.575, 0.625, 0.685, 5, '#bd246f'),
+				box('gate-wing', 0.365, 0.675, 0.46, 0.735, 4, '#bd246f'),
+				box('east-wall', 0.695, 0.465, 0.745, 0.615, 5, '#d33487'),
+				rectLine('outer-moat', 'moat', 0.3, 0.23, 0.82, 0.8),
+				rectLine('inner-moat', 'moat', 0.39, 0.285, 0.765, 0.725),
+				rectLine('tower-outline', 'wall-outline', 0.405, 0.455, 0.485, 0.535),
+				rectLine('keep-outline', 'wall-outline', 0.545, 0.405, 0.63, 0.49),
+				rectLine('hall-outline', 'wall-outline', 0.445, 0.575, 0.625, 0.685)
 			]
 		};
-	}
-
-	function localMetersToLngLat(
-		center: [number, number],
-		xMeters: number,
-		yMeters: number,
-		rotationDeg: number
-	): [number, number] {
-		const rotation = (rotationDeg * Math.PI) / 180;
-		const east = xMeters * Math.cos(rotation) - yMeters * Math.sin(rotation);
-		const north = xMeters * Math.sin(rotation) + yMeters * Math.cos(rotation);
-		const lat = center[1] + north / 111_320;
-		const lng = center[0] + east / (111_320 * Math.cos((center[1] * Math.PI) / 180));
-		return [lng, lat];
 	}
 
 	function getAnnotationCollection() {

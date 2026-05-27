@@ -117,11 +117,14 @@ describe('geoTiffProcessor', () => {
 	});
 
 	describe('validateBounds', () => {
-		test('returns valid WGS84 bounds unchanged', () => {
+		test('normalizes exact global bounds to Web Mercator tile bounds', () => {
 			const bounds = [-180, -90, 180, 90];
 			const result = validateBounds(bounds);
 
-			expect(result).toEqual(bounds);
+			expect(result[0]).toBe(-180);
+			expect(result[2]).toBe(180);
+			expect(result[1]).toBeCloseTo(-66.51326, 3);
+			expect(result[3]).toBeCloseTo(66.51326, 3);
 		});
 
 		test('validates regional bounds correctly', () => {

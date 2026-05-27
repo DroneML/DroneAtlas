@@ -159,7 +159,7 @@ export async function processPathogenData(
       lowerBound: lower,
       upperBound: upper,
       ageRange: relevantPointProps.ageGroup, // Use the ageGroup from the matched point
-      study: relevantPointProps.study,
+      study: relevantPointProps.source,
       duration: relevantPointProps.duration,
       source: relevantPointProps.source,
       sourceUrl: relevantPointProps.hyperlink
