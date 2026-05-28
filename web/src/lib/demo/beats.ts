@@ -21,6 +21,7 @@ export interface SceneRefs {
 	setSensorStackProgress: (p: number) => void;
 	setSplitReveal: (p: number) => void;
 	setSurveyBox: (visible: boolean) => void;
+	setAnalysisPopup: (visible: boolean) => void;
 }
 
 const WEESP: [number, number] = WEESP_DEMO_CENTER;
@@ -41,6 +42,7 @@ export function buildBeats(refs: SceneRefs): Beat[] {
 		refs.setSurveyBox(false);
 		refs.setSensorStackProgress(0);
 		refs.setSplitReveal(0);
+		refs.setAnalysisPopup(false);
 		droneLayer.setParticleIntensity(0);
 		droneLayer.setSiteModelVisible(false);
 	};
@@ -59,16 +61,23 @@ export function buildBeats(refs: SceneRefs): Beat[] {
 			subtitle: "A real case: 't Huijs ten Bosch, Weesp",
 			caption: '',
 			presenterNote:
-				"A medieval castle disappeared from the landscape. The traces are still there, but only as faint signals across drone sensor layers. Layer comparison helps archaeologists find those signals. DroneATLAS makes that workflow accessible as a research platform.",
+				'A medieval castle disappeared from the landscape. The traces are still there, but only as faint signals across drone sensor layers. Layer comparison helps archaeologists find those signals. DroneATLAS makes that workflow accessible as a research platform.',
 			showTelemetry: false,
 			...at(8),
 			enter: () => {
 				resetVisuals();
+				refs.setSurveyBox(true);
 				droneLayer.setVisibility({ drone: false, path: false, particles: false, finding: false });
 				map.jumpTo({ center: AMSTERDAM, zoom: 8.2, pitch: 0, bearing: 0 });
 			},
 			tick: (_, t) => {
 				const eased = easing.easeInOut(t);
+				const processing = Math.max(0, Math.min(1, (t - 0.34) / 0.56));
+				refs.setSensorStackProgress(processing);
+				if (t > 0.4) refs.setSensorActive('rgb', true);
+				if (t > 0.54) refs.setSensorActive('lidar', true);
+				if (t > 0.68) refs.setSensorActive('multispectral', true);
+				if (t > 0.82) refs.setSensorActive('thermal', true);
 				map.jumpTo({
 					center: lerpLngLat(AMSTERDAM, WEESP, eased),
 					zoom: 8.2 + eased * 5.2,
@@ -94,7 +103,12 @@ export function buildBeats(refs: SceneRefs): Beat[] {
 			},
 			tick: (_, t) => {
 				const eased = easing.easeInOut(t);
-				map.jumpTo({ center: WEESP, zoom: 10.8 + eased * 0.7, pitch: 12, bearing: -8 + eased * 10 });
+				map.jumpTo({
+					center: WEESP,
+					zoom: 10.8 + eased * 0.7,
+					pitch: 12,
+					bearing: -8 + eased * 10
+				});
 			}
 		},
 
@@ -115,7 +129,12 @@ export function buildBeats(refs: SceneRefs): Beat[] {
 			},
 			tick: (_, t) => {
 				const eased = easing.easeInOut(t);
-				map.jumpTo({ center: path.center, zoom: 14.6 + eased * 0.8, pitch: 32 + eased * 12, bearing: -18 + eased * 18 });
+				map.jumpTo({
+					center: path.center,
+					zoom: 14.6 + eased * 0.8,
+					pitch: 32 + eased * 12,
+					bearing: -18 + eased * 18
+				});
 			}
 		},
 
@@ -142,7 +161,12 @@ export function buildBeats(refs: SceneRefs): Beat[] {
 				if (t > 0.34) refs.setSensorActive('lidar', true);
 				if (t > 0.54) refs.setSensorActive('multispectral', true);
 				if (t > 0.74) refs.setSensorActive('thermal', true);
-				map.jumpTo({ center: path.center, zoom: 15.2, pitch: 50 + eased * 8, bearing: -24 + eased * 28 });
+				map.jumpTo({
+					center: path.center,
+					zoom: 15.2,
+					pitch: 50 + eased * 8,
+					bearing: -24 + eased * 28
+				});
 			}
 		},
 
@@ -167,7 +191,12 @@ export function buildBeats(refs: SceneRefs): Beat[] {
 				if (t > 0.3) refs.setDetectionVisible('foundation', true);
 				if (t > 0.5) refs.setDetectionVisible('wall', true);
 				if (t > 0.7) refs.setDetectionVisible('pit', true);
-				map.jumpTo({ center: path.center, zoom: 15.7 + eased * 0.5, pitch: 48, bearing: 8 + eased * 18 });
+				map.jumpTo({
+					center: path.center,
+					zoom: 15.7 + eased * 0.5,
+					pitch: 48,
+					bearing: 8 + eased * 18
+				});
 			}
 		},
 
@@ -220,7 +249,12 @@ export function buildBeats(refs: SceneRefs): Beat[] {
 				if (t > 0.32) refs.setDetectionVisible('foundation', true);
 				if (t > 0.58) refs.setDetectionVisible('wall', true);
 				if (t > 0.78) refs.setDetectionVisible('pit', true);
-				map.jumpTo({ center: path.center, zoom: 16.25, pitch: 44 + eased * 10, bearing: 18 - eased * 18 });
+				map.jumpTo({
+					center: path.center,
+					zoom: 16.25,
+					pitch: 44 + eased * 10,
+					bearing: 18 - eased * 18
+				});
 			}
 		},
 
@@ -240,7 +274,12 @@ export function buildBeats(refs: SceneRefs): Beat[] {
 			},
 			tick: (_, t) => {
 				const eased = easing.easeInOut(t);
-				map.jumpTo({ center: path.center, zoom: 13.2 + eased * 0.7, pitch: 24, bearing: eased * 12 });
+				map.jumpTo({
+					center: path.center,
+					zoom: 13.2 + eased * 0.7,
+					pitch: 24,
+					bearing: eased * 12
+				});
 			}
 		},
 
@@ -260,7 +299,12 @@ export function buildBeats(refs: SceneRefs): Beat[] {
 			},
 			tick: (_, t) => {
 				const eased = easing.easeInOut(t);
-				map.jumpTo({ center: path.center, zoom: 12.2 + eased * 0.6, pitch: 18 + eased * 6, bearing: -10 + eased * 10 });
+				map.jumpTo({
+					center: path.center,
+					zoom: 12.2 + eased * 0.6,
+					pitch: 18 + eased * 6,
+					bearing: -10 + eased * 10
+				});
 			}
 		},
 
@@ -291,7 +335,12 @@ export function buildBeats(refs: SceneRefs): Beat[] {
 				if (t > 0.34) refs.setSensorActive('lidar', true);
 				if (t > 0.5) refs.setSensorActive('multispectral', true);
 				if (t > 0.72) refs.setSensorActive('thermal', true);
-				map.jumpTo({ center: path.center, zoom: 15.4 + eased * 0.8, pitch: 54, bearing: -26 + eased * 34 });
+				map.jumpTo({
+					center: path.center,
+					zoom: 15.4 + eased * 0.8,
+					pitch: 54,
+					bearing: -26 + eased * 34
+				});
 			},
 			exit: () => droneLayer.setParticleIntensity(0)
 		},
@@ -349,17 +398,22 @@ export function buildBeats(refs: SceneRefs): Beat[] {
 				refs.setSurveyBox(true);
 				refs.setSensorStackProgress(1);
 				droneLayer.setVisibility({ drone: true, path: true, particles: false, finding: false });
-				droneLayer.setSiteModelVisible(true);
+				droneLayer.setSiteModelVisible(false);
 				droneLayer.setProgress(1);
 				const center = path.center;
 				map.jumpTo({ center, zoom: 17.05, pitch: 66, bearing: -28 });
-				refs.setDetectionVisible('foundation', true);
-				refs.setDetectionVisible('wall', true);
-				refs.setDetectionVisible('pit', true);
 			},
 			tick: (_, t) => {
 				const eased = easing.easeInOut(t);
 				const center = path.center;
+				const analysing = t > 0.08 && t < 0.44;
+				refs.setAnalysisPopup(analysing);
+				if (t >= 0.44) {
+					droneLayer.setSiteModelVisible(true);
+					refs.setDetectionVisible('foundation', true);
+				}
+				if (t >= 0.56) refs.setDetectionVisible('wall', true);
+				if (t >= 0.68) refs.setDetectionVisible('pit', true);
 				refs.setTelemetry({ altitude: 72, speed: 0, coverageKm2: 0.42, detections: 55 });
 				map.jumpTo({
 					center,
@@ -367,7 +421,8 @@ export function buildBeats(refs: SceneRefs): Beat[] {
 					pitch: 66 + Math.sin(t * Math.PI) * 4,
 					bearing: -28 + eased * 300
 				});
-			}
+			},
+			exit: () => refs.setAnalysisPopup(false)
 		}
 	];
 }

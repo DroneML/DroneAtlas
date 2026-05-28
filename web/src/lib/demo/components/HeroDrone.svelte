@@ -300,7 +300,7 @@
 
 <style>
 	.hero-drone {
-		transition: opacity 0.28s ease-out;
+		transition: opacity 1.1s cubic-bezier(0.22, 1, 0.36, 1);
 		width: 100%;
 		height: 100%;
 	}

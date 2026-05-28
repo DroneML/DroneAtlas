@@ -37,6 +37,7 @@
 	let sensorStackProgress = 0;
 	let splitRevealProgress = 0;
 	let surveyBoxVisible = false;
+	let analysisPopupVisible = false;
 
 	let sensors = [
 		{ id: 'rgb', label: 'RGB · Visible', color: '#39d2ff', active: false },
@@ -69,21 +70,29 @@
 	$: showTelemetry = currentBeat?.showTelemetry ?? false;
 	$: isLastSlide = slideIndex === beats.length - 1;
 	$: showSensorStack =
+		currentBeat?.id === 'search' ||
 		currentBeat?.id === 'sensors' ||
 		currentBeat?.id === 'process' ||
 		currentBeat?.id === 'explore' ||
 		currentBeat?.id === 'insight';
 	$: showSplitReveal =
 		currentBeat?.id === 'droneml' || currentBeat?.id === 'ml' || currentBeat?.id === 'process';
-	// Hero drone flies alongside the camera through most slides. Hide on the
-	// title/problem/close overlays (full-screen cards) and on 'finding' where
-	// the heightfield mesh and the in-scene drone take centre stage.
-	$: heroDroneVisible =
-		slideStarted &&
-		(currentBeat?.id === 'process' || currentBeat?.id === 'explore' || currentBeat?.id === 'insight');
+	// Hero drone is visible immediately and during the opening map flight, then
+	// fades after arrival before returning for the later platform fly-through.
+	$: showingOpeningFlight =
+		!slideStarted || (currentBeat?.id === 'search' && beatProgress < 0.92);
+	$: showingPlatformFlight =
+		currentBeat?.id === 'process' || currentBeat?.id === 'explore' || currentBeat?.id === 'insight';
+	$: heroDroneVisible = showingOpeningFlight || showingPlatformFlight;
 	$: heroDroneMode = (
-		currentBeat?.id === 'process' || currentBeat?.id === 'explore' ? 'flight' : 'idle'
-	) as 'flight' | 'idle';
+		!slideStarted
+			? 'idle'
+			: currentBeat?.id === 'search'
+				? 'transit'
+				: currentBeat?.id === 'process' || currentBeat?.id === 'explore'
+				? 'flight'
+				: 'idle'
+	) as 'flight' | 'idle' | 'transit';
 
 	function handleKeydown(e: KeyboardEvent) {
 		if (!timeline) return;
@@ -143,6 +152,7 @@
 		surveyBoxVisible = false;
 		sensorStackProgress = 0;
 		splitRevealProgress = 0;
+		analysisPopupVisible = false;
 		slideStarted = false;
 		timeline.seek(0);
 	}
@@ -308,7 +318,8 @@
 				},
 				setSensorStackProgress: (p) => (sensorStackProgress = p),
 				setSplitReveal: (p) => (splitRevealProgress = p),
-				setSurveyBox: (v) => (surveyBoxVisible = v)
+				setSurveyBox: (v) => (surveyBoxVisible = v),
+				setAnalysisPopup: (v) => (analysisPopupVisible = v)
 			};
 
 			const built = buildBeats(refs);
@@ -378,14 +389,27 @@
 		<SensorReveal {sensors} />
 		<DetectionCards detections={detectionCards} />
 
+		{#if analysisPopupVisible}
+			<div class="analysis-popup pointer-events-none absolute z-40">
+				<div class="scan-ring"></div>
+				<div>
+					<div class="analysis-title">Analysing tree...</div>
+					<div class="analysis-subtitle">Combining RGB, LiDAR, NDVI, and thermal clues</div>
+				</div>
+				<div class="analysis-bars" aria-hidden="true">
+					<span></span><span></span><span></span>
+				</div>
+			</div>
+		{/if}
+
 		{#if timeline && beats.length > 0 && slideStarted}
-		<PresenterNotes
-			visible={showNotes}
-			title={currentBeat?.title ?? ''}
-			note={currentBeat?.presenterNote ?? ''}
-			slideNum={slideIndex + 1}
-			totalSlides={beats.length}
-		/>
+			<PresenterNotes
+				visible={showNotes}
+				title={currentBeat?.title ?? ''}
+				note={currentBeat?.presenterNote ?? ''}
+				slideNum={slideIndex + 1}
+				totalSlides={beats.length}
+			/>
 		{/if}
 
 		{#if !slideStarted}
@@ -478,6 +502,82 @@
 		letter-spacing: 0.25em;
 		opacity: 0.7;
 		font-weight: 400;
+	}
+	.analysis-popup {
+		left: 50%;
+		top: 50%;
+		transform: translate(-50%, -50%);
+		display: grid;
+		grid-template-columns: auto 1fr auto;
+		align-items: center;
+		gap: 18px;
+		min-width: min(560px, 72vw);
+		padding: 24px 28px;
+		border-radius: 28px;
+		background: linear-gradient(135deg, rgba(7, 12, 22, 0.92), rgba(16, 25, 38, 0.78));
+		border: 1px solid rgba(57, 210, 255, 0.36);
+		box-shadow:
+			0 26px 80px rgba(0, 0, 0, 0.48),
+			0 0 42px rgba(57, 210, 255, 0.18);
+		backdrop-filter: blur(18px);
+		font-family: 'Inter', system-ui, sans-serif;
+		color: white;
+	}
+	.scan-ring {
+		width: 54px;
+		height: 54px;
+		border-radius: 999px;
+		border: 2px solid rgba(57, 210, 255, 0.18);
+		border-top-color: #39d2ff;
+		border-right-color: #06ffa5;
+		box-shadow: 0 0 24px rgba(57, 210, 255, 0.26);
+		animation: scan-spin 1.1s linear infinite;
+	}
+	.analysis-title {
+		font-size: clamp(22px, 2.7vw, 36px);
+		font-weight: 650;
+		letter-spacing: -0.04em;
+	}
+	.analysis-subtitle {
+		margin-top: 6px;
+		color: rgba(255, 255, 255, 0.68);
+		font-size: clamp(12px, 1.25vw, 16px);
+	}
+	.analysis-bars {
+		display: flex;
+		align-items: end;
+		gap: 4px;
+		height: 34px;
+	}
+	.analysis-bars span {
+		width: 5px;
+		border-radius: 99px;
+		background: #39d2ff;
+		animation: analyse-bar 0.8s ease-in-out infinite alternate;
+	}
+	.analysis-bars span:nth-child(1) {
+		height: 14px;
+	}
+	.analysis-bars span:nth-child(2) {
+		height: 26px;
+		animation-delay: 0.12s;
+		background: #06ffa5;
+	}
+	.analysis-bars span:nth-child(3) {
+		height: 20px;
+		animation-delay: 0.24s;
+		background: #ffb84d;
+	}
+	@keyframes scan-spin {
+		to {
+			transform: rotate(360deg);
+		}
+	}
+	@keyframes analyse-bar {
+		to {
+			transform: scaleY(0.42);
+			opacity: 0.55;
+		}
 	}
 	@keyframes pulse-btn {
 		0%,

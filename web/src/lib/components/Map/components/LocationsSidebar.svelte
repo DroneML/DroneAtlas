@@ -63,6 +63,10 @@
 	function handleLocationClick(locationId: string) {
 		const location = $projectLocations.find((item) => item.id === locationId);
 		if (!location) return;
+		if (location.id === 'weesp-castle') {
+			dispatch('weespdemostart', { locationId: location.id });
+			return;
+		}
 
 		selectLocation(locationId);
 

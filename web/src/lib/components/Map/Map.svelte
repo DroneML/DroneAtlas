@@ -38,7 +38,7 @@
 		toggleProjectLayer,
 		updateProjectLayerOpacity
 	} from '$lib/stores/projects.store';
-	import { WEESP_DEMO_CENTER, WEESP_IMAGE_BOUNDS, weespSiteUvToImageUv } from '$lib/demo/weesp';
+	import { WEESP_IMAGE_BOUNDS, weespSiteUvToImageUv } from '$lib/demo/weesp';
 	import { get } from 'svelte/store';
 	import type { ProjectLocation, RasterLayer } from '$lib/types';
 
@@ -68,6 +68,8 @@
 	let navigationDroneTimer: ReturnType<typeof setTimeout> | null = null;
 	let navigationFlightRun = 0;
 	let siteModelVisible = true;
+	let weespAnalysisPopupVisible = false;
+	let weespDemoTimers: ReturnType<typeof setTimeout>[] = [];
 	const siteReconstructionSourceId = 'weesp-site-reconstruction';
 	const siteReconstructionLayerIds = [
 		'weesp-site-moat-glow',
@@ -82,6 +84,7 @@
 		'weesp-thermal': 0.42,
 		'weesp-probability': 0.62
 	};
+	const weespRevealLayerIds = ['weesp-rgb', 'weesp-lidar', 'weesp-multispectral', 'weesp-thermal'];
 	let annotationDrawingEnabled = false;
 	let annotationIsDrawing = false;
 	let annotationFeatures: AnnotationFeature[] = [];
@@ -221,8 +224,8 @@
 		map = event.detail.map;
 		isStyleLoaded = true;
 		(window as any).__droneAtlasMap = map;
-		selectWeespDemo();
-		map.jumpTo({ center: WEESP_DEMO_CENTER, zoom: 18.45, bearing: -24, pitch: 58 });
+		map.jumpTo({ center: [5.5, 52.0], zoom: 7, bearing: 0, pitch: 0 });
+		setTimeout(() => runWeespDemoSequence(), 450);
 
 		// Add hover event listeners
 		map.on('mousemove', handleCursorChange);
@@ -408,7 +411,7 @@
 		const finishFlight = () => {
 			if (run !== navigationFlightRun) return;
 			navigationDroneMode = 'idle';
-			navigationDroneVisible = false;
+			navigationDroneVisible = target === 'overview';
 			navigationDroneTimer = null;
 		};
 
@@ -425,19 +428,61 @@
 		});
 	}
 
+	function clearWeespDemoTimers() {
+		for (const timer of weespDemoTimers) clearTimeout(timer);
+		weespDemoTimers = [];
+		weespAnalysisPopupVisible = false;
+	}
+
+	function scheduleWeespDemoStep(delay: number, step: () => void) {
+		const timer = setTimeout(step, delay);
+		weespDemoTimers = [...weespDemoTimers, timer];
+	}
+
+	function setWeespLayerVisible(location: ProjectLocation, layerId: string, visible: boolean) {
+		const layer = location.layers.find((item) => item.id === layerId);
+		if (!layer) return;
+		toggleProjectLayer(layer, visible);
+		if (visible) updateProjectLayerOpacity(layer.id, weespLayerOpacity[layer.id] ?? (layer.opacity ?? 0.48));
+	}
+
+	function runWeespDemoSequence() {
+		const location = get(projectLocations).find((item) => item.id === 'weesp-castle');
+		if (!location || !map) return;
+
+		clearWeespDemoTimers();
+		selectLocation(location.id);
+		for (const layer of location.layers) toggleProjectLayer(layer, false);
+		siteModelVisible = false;
+
+		const duration = 6500;
+		handleLocationFlightStart(
+			new CustomEvent('flightstart', { detail: { duration, target: 'location' } })
+		);
+		map.flyTo({
+			center: location.center,
+			zoom: location.zoom,
+			bearing: location.bearing ?? 0,
+			pitch: location.pitch ?? 0,
+			duration
+		});
+
+		weespRevealLayerIds.forEach((layerId, index) => {
+			scheduleWeespDemoStep(1400 + index * 1050, () => setWeespLayerVisible(location, layerId, true));
+		});
+
+		scheduleWeespDemoStep(duration + 550, () => {
+			weespAnalysisPopupVisible = true;
+		});
+		scheduleWeespDemoStep(duration + 3550, () => {
+			weespAnalysisPopupVisible = false;
+			setWeespLayerVisible(location, 'weesp-probability', true);
+			siteModelVisible = true;
+		});
+	}
+
 	function handleResetView() {
-		selectWeespDemo();
-		if (map) {
-			const duration = 1500;
-			handleLocationFlightStart(new CustomEvent('flightstart', { detail: { duration, target: 'location' } }));
-			map.flyTo({
-				center: WEESP_DEMO_CENTER,
-				zoom: 18.45,
-				bearing: -24,
-				pitch: 58,
-				duration
-			});
-		}
+		runWeespDemoSequence();
 	}
 
 	function handleFloatingDroneToggle(event: CustomEvent<{ disabled: boolean }>) {
@@ -453,20 +498,7 @@
 		navigationDroneTimer = null;
 		navigationDroneVisible = false;
 		navigationDroneMode = 'idle';
-	}
-
-	function selectWeespDemo() {
-		const location = get(projectLocations).find((item) => item.id === 'weesp-castle');
-		if (!location) return;
-
-		selectLocation(location.id);
-		for (const layer of location.layers) {
-			const enabled = layer.defaultEnabled ?? false;
-			if (enabled) {
-				toggleProjectLayer(layer, true);
-				updateProjectLayerOpacity(layer.id, weespLayerOpacity[layer.id] ?? (layer.opacity ?? 0.48));
-			}
-		}
+		clearWeespDemoTimers();
 	}
 
 	function ensureSiteReconstructionLayers(location: ProjectLocation) {
@@ -820,11 +852,11 @@
 			}
 		}
 
-		selectWeespDemo();
 	});
 
 	onDestroy(() => {
 		if (navigationDroneTimer) clearTimeout(navigationDroneTimer);
+		clearWeespDemoTimers();
 		removeSiteReconstructionLayers();
 
 		if ((window as any).__mapComponent) {
@@ -1010,6 +1042,7 @@
 		bind:globalOpacity
 		bind:disableFloatingDrone
 		on:flightstart={handleLocationFlightStart}
+		on:weespdemostart={runWeespDemoSequence}
 		on:floatingdronetoggle={handleFloatingDroneToggle}
 		on:opacitychange={handleOpacityChange}
 		on:overlaytoggle={() => {
@@ -1018,6 +1051,17 @@
 	/>
 
 	<LocationAnalyticsPanel {siteModelVisible} on:sitemodeltoggle={handleSiteModelToggle} />
+
+	{#if weespAnalysisPopupVisible}
+		<div class="weesp-analysis-popup pointer-events-none absolute z-[80]">
+			<div class="scan-ring"></div>
+			<div>
+				<div class="analysis-title">Analysing tree...</div>
+				<div class="analysis-subtitle">Fusing RGB, LiDAR, NDVI, and thermal evidence</div>
+			</div>
+			<div class="analysis-bars" aria-hidden="true"><span></span><span></span><span></span></div>
+		</div>
+	{/if}
 
 	{#if map && isStyleLoaded}
 		<RasterLegend visible={true} />
@@ -1192,6 +1236,90 @@
 		transform: translateY(-1px);
 		border-color: rgba(97, 216, 255, 0.4);
 		background: rgba(97, 216, 255, 0.1);
+	}
+
+	.weesp-analysis-popup {
+		left: 50%;
+		top: 50%;
+		transform: translate(-50%, -50%);
+		display: grid;
+		grid-template-columns: auto 1fr auto;
+		align-items: center;
+		gap: 18px;
+		min-width: min(560px, 72vw);
+		padding: 24px 28px;
+		border: 1px solid rgba(97, 216, 255, 0.38);
+		border-radius: 28px;
+		background: linear-gradient(135deg, rgba(7, 12, 22, 0.94), rgba(16, 25, 38, 0.8));
+		box-shadow: 0 26px 80px rgba(0, 0, 0, 0.52), 0 0 42px rgba(97, 216, 255, 0.2);
+		backdrop-filter: blur(18px) saturate(140%);
+		color: white;
+	}
+
+	.scan-ring {
+		width: 54px;
+		height: 54px;
+		border: 2px solid rgba(97, 216, 255, 0.18);
+		border-top-color: #61d8ff;
+		border-right-color: #67e985;
+		border-radius: 999px;
+		box-shadow: 0 0 24px rgba(97, 216, 255, 0.26);
+		animation: scan-spin 1.1s linear infinite;
+	}
+
+	.analysis-title {
+		font-size: clamp(22px, 2.7vw, 36px);
+		font-weight: 700;
+		letter-spacing: -0.04em;
+	}
+
+	.analysis-subtitle {
+		margin-top: 6px;
+		font-size: clamp(12px, 1.25vw, 16px);
+		color: rgba(255, 255, 255, 0.68);
+	}
+
+	.analysis-bars {
+		display: flex;
+		align-items: end;
+		gap: 4px;
+		height: 34px;
+	}
+
+	.analysis-bars span {
+		width: 5px;
+		border-radius: 99px;
+		background: #61d8ff;
+		animation: analyse-bar 0.8s ease-in-out infinite alternate;
+	}
+
+	.analysis-bars span:nth-child(1) {
+		height: 14px;
+	}
+
+	.analysis-bars span:nth-child(2) {
+		height: 26px;
+		animation-delay: 0.12s;
+		background: #67e985;
+	}
+
+	.analysis-bars span:nth-child(3) {
+		height: 20px;
+		animation-delay: 0.24s;
+		background: #ffb84d;
+	}
+
+	@keyframes scan-spin {
+		to {
+			transform: rotate(360deg);
+		}
+	}
+
+	@keyframes analyse-bar {
+		to {
+			transform: scaleY(0.42);
+			opacity: 0.55;
+		}
 	}
 
 	.mission-rail {

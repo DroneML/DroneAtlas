@@ -3,11 +3,11 @@ import { base } from '$app/paths';
 export const WEESP_DEMO_CENTER: [number, number] = [5.077141071509097, 52.29145220918268];
 
 const WEESP_IMAGE_CENTER: [number, number] = [
-	WEESP_DEMO_CENTER[0] - 0.00002,
-	WEESP_DEMO_CENTER[1] - 0.00008
+	WEESP_DEMO_CENTER[0] + 0.00017,
+	WEESP_DEMO_CENTER[1] - 0.00019
 ];
-const WEESP_IMAGE_HALF_LNG = 0.00135;
-const WEESP_IMAGE_HALF_LAT = 0.000825;
+const WEESP_IMAGE_HALF_LNG = 0.000378;
+const WEESP_IMAGE_HALF_LAT = 0.000231;
 
 export const WEESP_IMAGE_BOUNDS: [number, number, number, number] = [
 	WEESP_IMAGE_CENTER[0] - WEESP_IMAGE_HALF_LNG,
