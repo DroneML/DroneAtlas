@@ -39,7 +39,6 @@
 		field: localImage('02-weesp-field.jpg'),
 		drone: localImage('03-drone-fieldwork.jpg'),
 		satelliteAhn: localImage('04-satellite-ahn.jpg'),
-		optical: WEESP_IMAGE_URLS.rgb,
 		thermal: WEESP_IMAGE_URLS.thermal,
 		lidar: WEESP_IMAGE_URLS.lidar,
 		ndvi: WEESP_IMAGE_URLS.multispectral,
@@ -60,7 +59,6 @@
 	];
 
 	const sensorLayers = [
-		{ label: 'High-resolution RGB', src: imageSlots.optical, note: 'Surface base layer' },
 		{ label: 'LiDAR micro-topography', src: imageSlots.lidar, note: 'Buried wall/moat relief' },
 		{ label: 'Multispectral NDVI', src: imageSlots.ndvi, note: 'Vegetation stress' },
 		{ label: 'Thermal infrared', src: imageSlots.thermal, note: 'Heat-capacity contrast' }
@@ -201,10 +199,10 @@
 			<section class="hero-card center">
 				<div class="eyebrow">LIGHTWEIGHT DEMO</div>
 				<h2>Toggle layers,<br />not heavy processing.</h2>
-				<p>The four georeferenced PNG layers provide the visual base; the top probability raster adds numeric anomaly predictions on hover.</p>
+				<p>The three georeferenced PNG layers provide the visual base; the top probability raster adds numeric anomaly predictions on hover.</p>
 			</section>
 			<div class="method-diagram">
-				<div class="method-node data">RGB · LiDAR<br />NDVI · thermal</div>
+				<div class="method-node data">LiDAR · NDVI<br />thermal · probability</div>
 				<div class="method-arrow"></div>
 				<div class="method-node engine">map layer<br />stack</div>
 				<div class="method-arrow"></div>
@@ -215,7 +213,7 @@
 			<section class="hero-card left wide">
 				<div class="eyebrow">VISUAL LAYER COMPARISON</div>
 				<h2>Fast toggling keeps<br />the expert in the loop.</h2>
-				<p>Buried remains become legible when RGB, LiDAR, multispectral, and thermal views are compared together.</p>
+				<p>Buried remains become legible when LiDAR, multispectral, thermal, and probability views are compared together.</p>
 			</section>
 			<div class="ml-output-preview">
 				<ImageSlot
@@ -227,7 +225,7 @@
 				/>
 			</div>
 			<div class="ml-pipeline">
-				{#each ['high-resolution RGB', 'LiDAR micro-relief', 'NDVI vegetation stress', 'thermal inertia'] as step, i}
+				{#each ['LiDAR micro-relief', 'NDVI vegetation stress', 'thermal inertia', 'probability hover'] as step, i}
 					<div class="pipe-step" style="--i: {i}">{step}</div>
 					{#if i < 3}<div class="pipe-line" style="--i: {i}"></div>{/if}
 				{/each}

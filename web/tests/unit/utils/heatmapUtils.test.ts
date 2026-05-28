@@ -4,12 +4,29 @@
 
 import { describe, test, expect } from 'bun:test';
 import type { PointFeatureCollection } from '$lib/types';
+import { createPointFeature } from '../../helpers/factories/point-data';
 import {
 	getHeatmapPaintProperties,
 	isDataSuitableForHeatmap
 } from '$lib/components/Map/utils/heatmapUtils';
 
 describe('heatmapUtils', () => {
+	function collection(features: ReturnType<typeof createPointFeature>[]): PointFeatureCollection {
+		return { type: 'FeatureCollection', features };
+	}
+
+	function point(id: string, coordinates: [number, number], overrides = {}) {
+		return createPointFeature({
+			id,
+			geometry: { type: 'Point', coordinates },
+			properties: {
+				...createPointFeature().properties,
+				id,
+				...overrides
+			}
+		});
+	}
+
 	describe('getHeatmapPaintProperties', () => {
 		test('returns valid heatmap paint properties object', () => {
 			const properties = getHeatmapPaintProperties();
@@ -86,45 +103,19 @@ describe('heatmapUtils', () => {
 
 	describe('isDataSuitableForHeatmap', () => {
 		test('returns true for data with sufficient points', () => {
-			const data: PointFeatureCollection = {
-				type: 'FeatureCollection',
-				features: [
-					{
-						type: 'Feature',
-						id: '1',
-						geometry: { type: 'Point', coordinates: [5.0, 52.0] },
-						properties: { id: '1', prevalenceValue: 0.5, samples: 100, design: 'Surveillance' }
-					},
-					{
-						type: 'Feature',
-						id: '2',
-						geometry: { type: 'Point', coordinates: [6.0, 53.0] },
-						properties: { id: '2', prevalenceValue: 0.3, samples: 50, design: 'Cohort' }
-					},
-					{
-						type: 'Feature',
-						id: '3',
-						geometry: { type: 'Point', coordinates: [7.0, 54.0] },
-						properties: { id: '3', prevalenceValue: 0.7, samples: 150, design: 'Case-Control' }
-					}
-				]
-			};
+			const data = collection([
+				point('1', [5.0, 52.0], { prevalenceValue: 0.5, samples: 100, design: 'Surveillance' }),
+				point('2', [6.0, 53.0], { prevalenceValue: 0.3, samples: 50, design: 'Cohort' }),
+				point('3', [7.0, 54.0], { prevalenceValue: 0.7, samples: 150, design: 'Case-Control' })
+			]);
 
 			expect(isDataSuitableForHeatmap(data)).toBe(true);
 		});
 
 		test('returns false for data with too few points', () => {
-			const data: PointFeatureCollection = {
-				type: 'FeatureCollection',
-				features: [
-					{
-						type: 'Feature',
-						id: '1',
-						geometry: { type: 'Point', coordinates: [5.0, 52.0] },
-						properties: { id: '1', prevalenceValue: 0.5, samples: 100, design: 'Surveillance' }
-					}
-				]
-			};
+			const data = collection([
+				point('1', [5.0, 52.0], { prevalenceValue: 0.5, samples: 100, design: 'Surveillance' })
+			]);
 
 			expect(isDataSuitableForHeatmap(data)).toBe(false);
 		});
@@ -139,136 +130,51 @@ describe('heatmapUtils', () => {
 		});
 
 		test('returns true even without prevalence values (uses uniform weights)', () => {
-			const data: PointFeatureCollection = {
-				type: 'FeatureCollection',
-				features: [
-					{
-						type: 'Feature',
-						id: '1',
-						geometry: { type: 'Point', coordinates: [5.0, 52.0] },
-						properties: { id: '1', samples: 100, design: 'Surveillance' }
-					},
-					{
-						type: 'Feature',
-						id: '2',
-						geometry: { type: 'Point', coordinates: [6.0, 53.0] },
-						properties: { id: '2', samples: 50, design: 'Cohort' }
-					},
-					{
-						type: 'Feature',
-						id: '3',
-						geometry: { type: 'Point', coordinates: [7.0, 54.0] },
-						properties: { id: '3', samples: 150, design: 'Case-Control' }
-					}
-				]
-			};
+			const data = collection([
+				point('1', [5.0, 52.0], { samples: 100, design: 'Surveillance', prevalenceValue: undefined as any }),
+				point('2', [6.0, 53.0], { samples: 50, design: 'Cohort', prevalenceValue: undefined as any }),
+				point('3', [7.0, 54.0], { samples: 150, design: 'Case-Control', prevalenceValue: undefined as any })
+			]);
 
 			expect(isDataSuitableForHeatmap(data)).toBe(true);
 		});
 
 		test('returns true when at least one point has prevalence value', () => {
-			const data: PointFeatureCollection = {
-				type: 'FeatureCollection',
-				features: [
-					{
-						type: 'Feature',
-						id: '1',
-						geometry: { type: 'Point', coordinates: [5.0, 52.0] },
-						properties: { id: '1', samples: 100, design: 'Surveillance' }
-					},
-					{
-						type: 'Feature',
-						id: '2',
-						geometry: { type: 'Point', coordinates: [6.0, 53.0] },
-						properties: { id: '2', prevalenceValue: 0.3, samples: 50, design: 'Cohort' }
-					},
-					{
-						type: 'Feature',
-						id: '3',
-						geometry: { type: 'Point', coordinates: [7.0, 54.0] },
-						properties: { id: '3', samples: 150, design: 'Case-Control' }
-					}
-				]
-			};
+			const data = collection([
+				point('1', [5.0, 52.0], { samples: 100, design: 'Surveillance', prevalenceValue: undefined as any }),
+				point('2', [6.0, 53.0], { prevalenceValue: 0.3, samples: 50, design: 'Cohort' }),
+				point('3', [7.0, 54.0], { samples: 150, design: 'Case-Control', prevalenceValue: undefined as any })
+			]);
 
 			expect(isDataSuitableForHeatmap(data)).toBe(true);
 		});
 
 		test('handles null prevalence values correctly', () => {
-			const data: PointFeatureCollection = {
-				type: 'FeatureCollection',
-				features: [
-					{
-						type: 'Feature',
-						id: '1',
-						geometry: { type: 'Point', coordinates: [5.0, 52.0] },
-						properties: { id: '1', prevalenceValue: null as any, samples: 100, design: 'Surveillance' }
-					},
-					{
-						type: 'Feature',
-						id: '2',
-						geometry: { type: 'Point', coordinates: [6.0, 53.0] },
-						properties: { id: '2', prevalenceValue: null as any, samples: 50, design: 'Cohort' }
-					},
-					{
-						type: 'Feature',
-						id: '3',
-						geometry: { type: 'Point', coordinates: [7.0, 54.0] },
-						properties: { id: '3', prevalenceValue: null as any, samples: 150, design: 'Case-Control' }
-					}
-				]
-			};
+			const data = collection([
+				point('1', [5.0, 52.0], { prevalenceValue: null as any, samples: 100, design: 'Surveillance' }),
+				point('2', [6.0, 53.0], { prevalenceValue: null as any, samples: 50, design: 'Cohort' }),
+				point('3', [7.0, 54.0], { prevalenceValue: null as any, samples: 150, design: 'Case-Control' })
+			]);
 
 			// Should still be suitable (will use uniform weights)
 			expect(isDataSuitableForHeatmap(data)).toBe(true);
 		});
 
 		test('returns true for exactly 3 points', () => {
-			const data: PointFeatureCollection = {
-				type: 'FeatureCollection',
-				features: [
-					{
-						type: 'Feature',
-						id: '1',
-						geometry: { type: 'Point', coordinates: [5.0, 52.0] },
-						properties: { id: '1', prevalenceValue: 0.5, samples: 100, design: 'Surveillance' }
-					},
-					{
-						type: 'Feature',
-						id: '2',
-						geometry: { type: 'Point', coordinates: [6.0, 53.0] },
-						properties: { id: '2', prevalenceValue: 0.3, samples: 50, design: 'Cohort' }
-					},
-					{
-						type: 'Feature',
-						id: '3',
-						geometry: { type: 'Point', coordinates: [7.0, 54.0] },
-						properties: { id: '3', prevalenceValue: 0.7, samples: 150, design: 'Case-Control' }
-					}
-				]
-			};
+			const data = collection([
+				point('1', [5.0, 52.0], { prevalenceValue: 0.5, samples: 100, design: 'Surveillance' }),
+				point('2', [6.0, 53.0], { prevalenceValue: 0.3, samples: 50, design: 'Cohort' }),
+				point('3', [7.0, 54.0], { prevalenceValue: 0.7, samples: 150, design: 'Case-Control' })
+			]);
 
 			expect(isDataSuitableForHeatmap(data)).toBe(true);
 		});
 
 		test('returns false for 2 points', () => {
-			const data: PointFeatureCollection = {
-				type: 'FeatureCollection',
-				features: [
-					{
-						type: 'Feature',
-						id: '1',
-						geometry: { type: 'Point', coordinates: [5.0, 52.0] },
-						properties: { id: '1', prevalenceValue: 0.5, samples: 100, design: 'Surveillance' }
-					},
-					{
-						type: 'Feature',
-						id: '2',
-						geometry: { type: 'Point', coordinates: [6.0, 53.0] },
-						properties: { id: '2', prevalenceValue: 0.3, samples: 50, design: 'Cohort' }
-					}
-				]
-			};
+			const data = collection([
+				point('1', [5.0, 52.0], { prevalenceValue: 0.5, samples: 100, design: 'Surveillance' }),
+				point('2', [6.0, 53.0], { prevalenceValue: 0.3, samples: 50, design: 'Cohort' })
+			]);
 
 			expect(isDataSuitableForHeatmap(data)).toBe(false);
 		});

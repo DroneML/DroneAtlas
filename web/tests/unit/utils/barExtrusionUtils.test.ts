@@ -5,6 +5,7 @@
 import { describe, test, expect, beforeEach } from 'bun:test';
 import type { FeatureCollection, Point } from 'geojson';
 import type { PointProperties } from '$lib/types';
+import { createPointFeature } from '../../helpers/factories/point-data';
 import {
 	convertPointsToPolygons,
 	getDesignColors,
@@ -15,27 +16,30 @@ import {
 } from '$lib/components/Map/utils/barExtrusionUtils';
 
 describe('barExtrusionUtils', () => {
+	function pointsCollection(
+		features: Array<{ id: string; coordinates: [number, number]; properties?: Partial<PointProperties> }>
+	): FeatureCollection<Point, PointProperties> {
+		return {
+			type: 'FeatureCollection',
+			features: features.map((feature) =>
+				createPointFeature({
+					id: feature.id,
+					geometry: { type: 'Point', coordinates: feature.coordinates },
+					properties: {
+						...createPointFeature().properties,
+						id: feature.id,
+						...feature.properties
+					}
+				})
+			)
+		};
+	}
+
 	describe('convertPointsToPolygons', () => {
 		test('converts point features to polygon features', () => {
-			const pointsData: FeatureCollection<Point, PointProperties> = {
-				type: 'FeatureCollection',
-				features: [
-					{
-						type: 'Feature',
-						id: '1',
-						geometry: {
-							type: 'Point',
-							coordinates: [5.0, 52.0]
-						},
-						properties: {
-							id: '1',
-							prevalenceValue: 0.5,
-							samples: 100,
-							design: 'Surveillance'
-						}
-					}
-				]
-			};
+			const pointsData = pointsCollection([
+				{ id: '1', coordinates: [5.0, 52.0], properties: { prevalenceValue: 0.5, samples: 100, design: 'Surveillance' } }
+			]);
 
 			const result = convertPointsToPolygons(pointsData);
 
@@ -45,25 +49,9 @@ describe('barExtrusionUtils', () => {
 		});
 
 		test('calculates extrusion height based on prevalence', () => {
-			const pointsData: FeatureCollection<Point, PointProperties> = {
-				type: 'FeatureCollection',
-				features: [
-					{
-						type: 'Feature',
-						id: '1',
-						geometry: {
-							type: 'Point',
-							coordinates: [5.0, 52.0]
-						},
-						properties: {
-							id: '1',
-							prevalenceValue: 0.5, // 50% prevalence
-							samples: 100,
-							design: 'Surveillance'
-						}
-					}
-				]
-			};
+			const pointsData = pointsCollection([
+				{ id: '1', coordinates: [5.0, 52.0], properties: { prevalenceValue: 0.5, samples: 100, design: 'Surveillance' } }
+			]);
 
 			const result = convertPointsToPolygons(pointsData);
 			const height = result.features[0].properties.extrusionHeight;
@@ -74,25 +62,9 @@ describe('barExtrusionUtils', () => {
 		});
 
 		test('uses design color from mapping', () => {
-			const pointsData: FeatureCollection<Point, PointProperties> = {
-				type: 'FeatureCollection',
-				features: [
-					{
-						type: 'Feature',
-						id: '1',
-						geometry: {
-							type: 'Point',
-							coordinates: [5.0, 52.0]
-						},
-						properties: {
-							id: '1',
-							prevalenceValue: 0.5,
-							samples: 100,
-							design: 'Surveillance'
-						}
-					}
-				]
-			};
+			const pointsData = pointsCollection([
+				{ id: '1', coordinates: [5.0, 52.0], properties: { prevalenceValue: 0.5, samples: 100, design: 'Surveillance' } }
+			]);
 
 			const result = convertPointsToPolygons(pointsData);
 			const color = result.features[0].properties.color;
@@ -101,25 +73,9 @@ describe('barExtrusionUtils', () => {
 		});
 
 		test('uses default color for unknown design type', () => {
-			const pointsData: FeatureCollection<Point, PointProperties> = {
-				type: 'FeatureCollection',
-				features: [
-					{
-						type: 'Feature',
-						id: '1',
-						geometry: {
-							type: 'Point',
-							coordinates: [5.0, 52.0]
-						},
-						properties: {
-							id: '1',
-							prevalenceValue: 0.5,
-							samples: 100,
-							design: 'Unknown Design Type' as any
-						}
-					}
-				]
-			};
+			const pointsData = pointsCollection([
+				{ id: '1', coordinates: [5.0, 52.0], properties: { prevalenceValue: 0.5, samples: 100, design: 'Unknown Design Type' as any } }
+			]);
 
 			const result = convertPointsToPolygons(pointsData);
 			const color = result.features[0].properties.color;
@@ -128,25 +84,9 @@ describe('barExtrusionUtils', () => {
 		});
 
 		test('creates square polygon with correct coordinates', () => {
-			const pointsData: FeatureCollection<Point, PointProperties> = {
-				type: 'FeatureCollection',
-				features: [
-					{
-						type: 'Feature',
-						id: '1',
-						geometry: {
-							type: 'Point',
-							coordinates: [5.0, 52.0]
-						},
-						properties: {
-							id: '1',
-							prevalenceValue: 0.5,
-							samples: 100,
-							design: 'Surveillance'
-						}
-					}
-				]
-			};
+			const pointsData = pointsCollection([
+				{ id: '1', coordinates: [5.0, 52.0], properties: { prevalenceValue: 0.5, samples: 100, design: 'Surveillance' } }
+			]);
 
 			const result = convertPointsToPolygons(pointsData);
 			const coordinates = result.features[0].geometry.coordinates[0];
@@ -159,25 +99,9 @@ describe('barExtrusionUtils', () => {
 		});
 
 		test('handles prevalence value between 0-1', () => {
-			const pointsData: FeatureCollection<Point, PointProperties> = {
-				type: 'FeatureCollection',
-				features: [
-					{
-						type: 'Feature',
-						id: '1',
-						geometry: {
-							type: 'Point',
-							coordinates: [5.0, 52.0]
-						},
-						properties: {
-							id: '1',
-							prevalenceValue: 0.25, // 25% as decimal
-							samples: 100,
-							design: 'Surveillance'
-						}
-					}
-				]
-			};
+			const pointsData = pointsCollection([
+				{ id: '1', coordinates: [5.0, 52.0], properties: { prevalenceValue: 0.25, samples: 100, design: 'Surveillance' } }
+			]);
 
 			const result = convertPointsToPolygons(pointsData);
 			const height = result.features[0].properties.extrusionHeight;
@@ -186,25 +110,9 @@ describe('barExtrusionUtils', () => {
 		});
 
 		test('handles prevalence value as percentage (0-100)', () => {
-			const pointsData: FeatureCollection<Point, PointProperties> = {
-				type: 'FeatureCollection',
-				features: [
-					{
-						type: 'Feature',
-						id: '1',
-						geometry: {
-							type: 'Point',
-							coordinates: [5.0, 52.0]
-						},
-						properties: {
-							id: '1',
-							prevalenceValue: 75, // 75% as whole number
-							samples: 100,
-							design: 'Surveillance'
-						}
-					}
-				]
-			};
+			const pointsData = pointsCollection([
+				{ id: '1', coordinates: [5.0, 52.0], properties: { prevalenceValue: 75, samples: 100, design: 'Surveillance' } }
+			]);
 
 			const result = convertPointsToPolygons(pointsData);
 			const height = result.features[0].properties.extrusionHeight;
@@ -213,24 +121,9 @@ describe('barExtrusionUtils', () => {
 		});
 
 		test('handles missing prevalence value', () => {
-			const pointsData: FeatureCollection<Point, PointProperties> = {
-				type: 'FeatureCollection',
-				features: [
-					{
-						type: 'Feature',
-						id: '1',
-						geometry: {
-							type: 'Point',
-							coordinates: [5.0, 52.0]
-						},
-						properties: {
-							id: '1',
-							samples: 100,
-							design: 'Surveillance'
-						}
-					}
-				]
-			};
+			const pointsData = pointsCollection([
+				{ id: '1', coordinates: [5.0, 52.0], properties: { prevalenceValue: undefined as any, samples: 100, design: 'Surveillance' } }
+			]);
 
 			const result = convertPointsToPolygons(pointsData);
 
@@ -240,23 +133,10 @@ describe('barExtrusionUtils', () => {
 		});
 
 		test('processes multiple points correctly', () => {
-			const pointsData: FeatureCollection<Point, PointProperties> = {
-				type: 'FeatureCollection',
-				features: [
-					{
-						type: 'Feature',
-						id: '1',
-						geometry: { type: 'Point', coordinates: [5.0, 52.0] },
-						properties: { id: '1', prevalenceValue: 0.5, samples: 100, design: 'Surveillance' }
-					},
-					{
-						type: 'Feature',
-						id: '2',
-						geometry: { type: 'Point', coordinates: [6.0, 53.0] },
-						properties: { id: '2', prevalenceValue: 0.3, samples: 50, design: 'Cohort' }
-					}
-				]
-			};
+			const pointsData = pointsCollection([
+				{ id: '1', coordinates: [5.0, 52.0], properties: { prevalenceValue: 0.5, samples: 100, design: 'Surveillance' } },
+				{ id: '2', coordinates: [6.0, 53.0], properties: { prevalenceValue: 0.3, samples: 50, design: 'Cohort' } }
+			]);
 
 			const result = convertPointsToPolygons(pointsData);
 

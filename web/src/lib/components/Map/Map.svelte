@@ -78,13 +78,12 @@
 		'weesp-site-wall-outlines'
 	];
 	const weespLayerOpacity: Record<string, number> = {
-		'weesp-rgb': 0.86,
 		'weesp-lidar': 0.56,
 		'weesp-multispectral': 0.38,
 		'weesp-thermal': 0.42,
 		'weesp-probability': 0.62
 	};
-	const weespRevealLayerIds = ['weesp-rgb', 'weesp-lidar', 'weesp-multispectral', 'weesp-thermal'];
+	const weespRevealLayerIds = ['weesp-lidar', 'weesp-multispectral', 'weesp-thermal'];
 	let annotationDrawingEnabled = false;
 	let annotationIsDrawing = false;
 	let annotationFeatures: AnnotationFeature[] = [];
@@ -446,6 +445,19 @@
 		if (visible) updateProjectLayerOpacity(layer.id, weespLayerOpacity[layer.id] ?? (layer.opacity ?? 0.48));
 	}
 
+	function clearRenderedProjectLayers(location: ProjectLocation) {
+		if (!map) return;
+		for (const layer of location.layers) {
+			const id = `project-${layer.id}`;
+			try {
+				if (map.getLayer(id)) map.removeLayer(id);
+				if (map.getSource(id)) map.removeSource(id);
+			} catch (error) {
+				console.warn(`Unable to clear stale project layer ${id}`, error);
+			}
+		}
+	}
+
 	function runWeespDemoSequence() {
 		const location = get(projectLocations).find((item) => item.id === 'weesp-castle');
 		if (!location || !map) return;
@@ -453,6 +465,7 @@
 		clearWeespDemoTimers();
 		selectLocation(location.id);
 		for (const layer of location.layers) toggleProjectLayer(layer, false);
+		clearRenderedProjectLayers(location);
 		siteModelVisible = false;
 
 		const duration = 6500;
@@ -1057,7 +1070,7 @@
 			<div class="scan-ring"></div>
 			<div>
 				<div class="analysis-title">Analysing tree...</div>
-				<div class="analysis-subtitle">Fusing RGB, LiDAR, NDVI, and thermal evidence</div>
+				<div class="analysis-subtitle">Fusing LiDAR, NDVI, thermal, and probability evidence</div>
 			</div>
 			<div class="analysis-bars" aria-hidden="true"><span></span><span></span><span></span></div>
 		</div>

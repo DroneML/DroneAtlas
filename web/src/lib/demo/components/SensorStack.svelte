@@ -41,10 +41,9 @@
 	});
 
 	// Staggered fade-in thresholds for each visual layer.
-	$: rgbOp = opacityAt(progress, 0.08, 0.25);
-	$: lidarOp = opacityAt(progress, 0.3, 0.45);
-	$: multispectralOp = opacityAt(progress, 0.55, 0.7);
-	$: thermalOp = opacityAt(progress, 0.78, 0.92);
+	$: lidarOp = opacityAt(progress, 0.08, 0.25);
+	$: multispectralOp = opacityAt(progress, 0.38, 0.55);
+	$: thermalOp = opacityAt(progress, 0.68, 0.85);
 
 	function opacityAt(p: number, start: number, full: number): number {
 		if (p < start) return 0;
@@ -58,7 +57,6 @@
 		class="sensor-stack z-15 pointer-events-none absolute"
 		style="left: {left}px; top: {top}px; width: {width}px; height: {height}px;"
 	>
-		<div class="layer rgb" style="opacity: {rgbOp}"><img src={WEESP_IMAGE_URLS.rgb} alt="" /></div>
 		<div class="layer lidar" style="opacity: {lidarOp}"><img src={WEESP_IMAGE_URLS.lidar} alt="" /></div>
 		<div class="layer multispectral" style="opacity: {multispectralOp}"><img src={WEESP_IMAGE_URLS.multispectral} alt="" /></div>
 		<div class="layer thermal" style="opacity: {thermalOp}"><img src={WEESP_IMAGE_URLS.thermal} alt="" /></div>
@@ -88,9 +86,6 @@
 		width: 100%;
 		height: 100%;
 		object-fit: fill;
-	}
-	.rgb {
-		mix-blend-mode: normal;
 	}
 	.thermal,
 	.multispectral,

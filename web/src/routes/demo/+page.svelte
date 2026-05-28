@@ -40,7 +40,6 @@
 	let analysisPopupVisible = false;
 
 	let sensors = [
-		{ id: 'rgb', label: 'RGB · Visible', color: '#39d2ff', active: false },
 		{ id: 'lidar', label: 'LiDAR · Relief', color: '#06ffa5', active: false },
 		{ id: 'multispectral', label: 'Multispectral · NDVI', color: '#67e985', active: false },
 		{ id: 'thermal', label: 'Thermal · LWIR', color: '#ff6b6b', active: false }
@@ -394,7 +393,7 @@
 				<div class="scan-ring"></div>
 				<div>
 					<div class="analysis-title">Analysing tree...</div>
-					<div class="analysis-subtitle">Combining RGB, LiDAR, NDVI, and thermal clues</div>
+					<div class="analysis-subtitle">Combining LiDAR, NDVI, thermal, and probability clues</div>
 				</div>
 				<div class="analysis-bars" aria-hidden="true">
 					<span></span><span></span><span></span>

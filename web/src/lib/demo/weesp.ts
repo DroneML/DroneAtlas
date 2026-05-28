@@ -42,7 +42,6 @@ export function weespImageUvToSiteUv(u: number, v: number): [number, number] {
 const weespImageBase = `${base}/weesp_images`;
 
 export const WEESP_IMAGE_URLS = {
-	rgb: `${weespImageBase}/rgb.png`,
 	lidar: `${weespImageBase}/lidar.png`,
 	multispectral: `${weespImageBase}/multispectral.png`,
 	thermal: `${weespImageBase}/termal.png`

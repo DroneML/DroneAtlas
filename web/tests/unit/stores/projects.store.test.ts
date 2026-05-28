@@ -36,26 +36,26 @@ describe('projects.store', () => {
 	});
 
 	test('toggles project layers into the raster layer store', () => {
-		const weesp = get(projectLocations).find((location) => location.id === 'weesp-castle');
-		const layer = weesp?.layers.find((item) => item.id === 'weesp-rgb');
+		const location = get(projectLocations).find((item) => item.layers.length > 0);
+		const layer = location?.layers[0];
 		expect(layer).toBeDefined();
 
 		toggleProjectLayer(layer!, true);
 
-		expect(get(enabledProjectLayers).has('weesp-rgb')).toBe(true);
-		expect(get(rasterLayers).get('project-weesp-rgb')).toMatchObject({
-			id: 'project-weesp-rgb',
-			name: 'High-resolution RGB',
+		expect(get(enabledProjectLayers).has(layer!.id)).toBe(true);
+		expect(get(rasterLayers).get(`project-${layer!.id}`)).toMatchObject({
+			id: `project-${layer!.id}`,
+			name: layer!.name,
 			isVisible: true,
-			opacity: 0.86
+			opacity: layer!.opacity ?? 0.8
 		});
 
-		updateProjectLayerOpacity('weesp-rgb', 1.25);
-		expect(get(rasterLayers).get('project-weesp-rgb')?.opacity).toBe(1);
+		updateProjectLayerOpacity(layer!.id, 1.25);
+		expect(get(rasterLayers).get(`project-${layer!.id}`)?.opacity).toBe(1);
 
 		toggleProjectLayer(layer!, false);
-		expect(get(enabledProjectLayers).has('weesp-rgb')).toBe(false);
-		expect(get(rasterLayers).has('project-weesp-rgb')).toBe(false);
+		expect(get(enabledProjectLayers).has(layer!.id)).toBe(false);
+		expect(get(rasterLayers).has(`project-${layer!.id}`)).toBe(false);
 	});
 
 	test('switching locations clears enabled project layers from raster store', () => {

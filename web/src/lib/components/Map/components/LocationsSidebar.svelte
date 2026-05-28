@@ -3,13 +3,14 @@
 	import type { Map as MaplibreMap } from 'maplibre-gl';
 	import type { ProjectLayerDef } from '$lib/types';
 	import {
+		enabledProjectLayers,
 		projectLocations,
 		selectedLocation,
 		selectLocation,
 		toggleProjectLayer,
 		updateProjectLayerOpacity
 	} from '$lib/stores/projects.store';
-	import { updateAllRasterLayersOpacity } from '$lib/stores/raster.store';
+	import { rasterLayers, updateAllRasterLayersOpacity } from '$lib/stores/raster.store';
 	import {
 		loadStoredSettings,
 		saveSettingsToStorage
@@ -36,14 +37,12 @@
 	};
 
 	const weespShowcaseLayers = new Set([
-		'weesp-rgb',
 		'weesp-lidar',
 		'weesp-multispectral',
 		'weesp-thermal',
 		'weesp-probability'
 	]);
 	const weespShowcaseOpacity: Record<string, number> = {
-		'weesp-rgb': 0.86,
 		'weesp-lidar': 0.56,
 		'weesp-multispectral': 0.38,
 		'weesp-thermal': 0.42,
@@ -115,6 +114,24 @@
 	function getLayerColor(type: ProjectLayerDef['type']): string {
 		return layerColors[type] ?? '#62a7ff';
 	}
+
+	function isLayerEnabled(layerId: string): boolean {
+		return $enabledProjectLayers.has(layerId);
+	}
+
+	function getLayerOpacity(layer: ProjectLayerDef): number {
+		const rasterLayer = $rasterLayers.get(`project-${layer.id}`);
+		return Math.round((rasterLayer?.opacity ?? layer.opacity ?? 0.8) * 100);
+	}
+
+	function handleLayerToggle(layer: ProjectLayerDef, checked: boolean) {
+		toggleProjectLayer(layer, checked);
+		if (checked) updateProjectLayerOpacity(layer.id, weespShowcaseOpacity[layer.id] ?? (layer.opacity ?? 0.48));
+	}
+
+	function handleLayerOpacity(layer: ProjectLayerDef, value: number) {
+		updateProjectLayerOpacity(layer.id, value / 100);
+	}
 </script>
 
 <div id="locations-sidebar" class="locations-panel" class:collapsed>
@@ -160,7 +177,7 @@
 					<div class="mission-kicker">Primary Demo Route</div>
 					<h3>In search of a castle</h3>
 					<p>
-						Enter Weesp to reveal RGB, LiDAR, multispectral, thermal, and anomaly probability layers on the map.
+						Enter Weesp to reveal LiDAR, multispectral, thermal, and anomaly probability layers on the map.
 					</p>
 				</section>
 
@@ -216,6 +233,38 @@
 					{/if}
 				</section>
 
+				<section class="active-layer-card">
+					<div class="section-title">Layer Transparency</div>
+					<div class="active-layer-list">
+						{#each $selectedLocation.layers as layer (layer.id)}
+							{@const enabled = isLayerEnabled(layer.id)}
+							{@const opacity = getLayerOpacity(layer)}
+							<div class="active-layer-row" class:enabled>
+								<label class="active-layer-toggle">
+									<input
+										type="checkbox"
+										checked={enabled}
+										onchange={(event) => handleLayerToggle(layer, event.currentTarget.checked)}
+									/>
+									<span class="layer-dot" style="background: {getLayerColor(layer.type)}"></span>
+									<span>{layer.name}</span>
+									<strong>{opacity}%</strong>
+								</label>
+								<input
+									class="layer-opacity-slider"
+									type="range"
+									min="0"
+									max="100"
+									value={opacity}
+									disabled={!enabled}
+									aria-label="{layer.name} transparency"
+									oninput={(event) => handleLayerOpacity(layer, Number(event.currentTarget.value))}
+								/>
+							</div>
+						{/each}
+					</div>
+				</section>
+
 				{#if $selectedLocation.facts}
 					<section class="fact-grid" aria-label="Location facts">
 						{#each $selectedLocation.facts as fact}
@@ -250,17 +299,6 @@
 					</section>
 				{/if}
 
-				<section class="active-layer-card">
-					<div class="section-title">Evidence Layers</div>
-					<div class="active-layer-list">
-						{#each $selectedLocation.layers as layer (layer.id)}
-							<div>
-								<span class="layer-dot" style="background: {getLayerColor(layer.type)}"></span>
-								<span>{layer.name}</span>
-							</div>
-						{/each}
-					</div>
-				</section>
 			{/if}
 		</div>
 	{/if}
@@ -688,13 +726,51 @@
 		margin-top: 9px;
 	}
 
-	.active-layer-list div {
-		display: flex;
+	.active-layer-row {
+		display: grid;
+		gap: 7px;
+		padding: 8px;
+		border: 1px solid rgba(255, 255, 255, 0.06);
+		border-radius: 12px;
+		background: rgba(255, 255, 255, 0.035);
+		color: rgba(232, 241, 255, 0.52);
+	}
+
+	.active-layer-row.enabled {
+		border-color: rgba(97, 216, 255, 0.18);
+		background: rgba(97, 216, 255, 0.055);
+		color: rgba(232, 241, 255, 0.78);
+	}
+
+	.active-layer-toggle {
+		display: grid;
+		grid-template-columns: auto auto minmax(0, 1fr) auto;
 		align-items: center;
 		gap: 8px;
 		font-size: 11px;
-		font-weight: 700;
-		color: rgba(232, 241, 255, 0.7);
+		font-weight: 750;
+	}
+
+	.active-layer-toggle span:not(.layer-dot) {
+		overflow: hidden;
+		text-overflow: ellipsis;
+		white-space: nowrap;
+	}
+
+	.active-layer-toggle strong {
+		font-size: 10px;
+		font-weight: 850;
+		color: rgba(232, 241, 255, 0.58);
+	}
+
+	.layer-opacity-slider {
+		width: 100%;
+		accent-color: #61d8ff;
+		opacity: 0.95;
+	}
+
+	.layer-opacity-slider:disabled {
+		opacity: 0.25;
 	}
 
 	.settings-modal {

@@ -26,8 +26,8 @@ const sampleLocations: ProjectLocation[] = [
     subtitle: 'Image-layer demo: in search of a castle',
     caseStudy: '4D Research Lab multi-sensor visual case study',
     period: 'Field campaigns: February, June, and September 2022',
-    description:
-      'A medieval castle near Weesp, built after 1220 and destroyed in 1672, is no longer visible as a structure. The demo uses four lightweight visual image layers plus a numeric anomaly-probability raster for hover inspection.',
+		description:
+			'A medieval castle near Weesp, built after 1220 and destroyed in 1672, is no longer visible as a structure. The demo uses three lightweight visual image layers plus a numeric anomaly-probability raster for hover inspection.',
     citation: weespSource,
     center: WEESP_DEMO_CENTER,
     zoom: 18.45,
@@ -36,7 +36,7 @@ const sampleLocations: ProjectLocation[] = [
     facts: [
       { label: 'Site', value: 'medieval castle' },
       { label: 'Destroyed', value: '1672' },
-      { label: 'Layers', value: '4 visual + probability' },
+		{ label: 'Layers', value: '3 visual + probability' },
       { label: 'Format', value: '1:1 PNG' }
     ],
     findings: [
@@ -50,10 +50,10 @@ const sampleLocations: ProjectLocation[] = [
         title: '1. Fly',
         description: 'The drone camera targets the Weesp reference coordinate and survey footprint.'
       },
-      {
-        title: '2. Stack',
-        description: 'RGB, LiDAR, multispectral, thermal, and probability rasters are placed as map layers.'
-      },
+		{
+			title: '2. Stack',
+			description: 'LiDAR, multispectral, thermal, and probability rasters are placed as map layers.'
+		},
       {
         title: '3. Toggle',
         description: 'Layer opacity and visibility reveal different physical signals.'
@@ -64,26 +64,7 @@ const sampleLocations: ProjectLocation[] = [
       }
     ],
     layers: [
-      {
-        id: 'weesp-rgb',
-        name: 'High-resolution RGB',
-        type: 'rgb',
-        sourceUrl: WEESP_IMAGE_URLS.rgb,
-        imageUrl: WEESP_IMAGE_URLS.rgb,
-        bounds: WEESP_IMAGE_BOUNDS,
-        opacity: 0.86,
-        defaultEnabled: true,
-        description: 'The surface base layer for field context, visible cropmarks, and present-day texture.',
-        evidence: 'Shows the ground surface, surrounding water/road context, and subtle visible texture changes.',
-        layerMetadata: {
-          indicator: 'RGB visual context',
-          study: "'t Huijs ten Bosch, Weesp",
-          definition: 'High-resolution RGB image overlay',
-          source: weespSource,
-          hyperlink: 'https://doi.org/10.21942/uva.23375486.v3'
-        }
-      },
-      {
+		{
         id: 'weesp-lidar',
         name: 'LiDAR micro-topography',
         type: 'lidar',

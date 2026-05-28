@@ -6,7 +6,7 @@
 	export let map: MaplibreMap | null = null;
 	export let bbox: [number, number, number, number];
 	export let visible: boolean = false;
-	export let progress: number = 0; // 0..1 — 0 = RGB only, 1 = ML fully revealed
+	export let progress: number = 0; // 0..1 - 0 = LiDAR only, 1 = NDVI revealed
 
 	let left = 0,
 		top = 0,
@@ -46,16 +46,16 @@
 		class="split-reveal z-15 pointer-events-none absolute"
 		style="left: {left}px; top: {top}px; width: {width}px; height: {height}px;"
 	>
-		<div class="base rgb"><img src={WEESP_IMAGE_URLS.rgb} alt="" /></div>
+		<div class="base lidar"><img src={WEESP_IMAGE_URLS.lidar} alt="" /></div>
 		<div
-			class="overlay lidar"
+			class="overlay multispectral"
 			style="clip-path: polygon(0 0, {revealPct}% 0, {revealPct}% 100%, 0 100%)"
 		>
-			<img src={WEESP_IMAGE_URLS.lidar} alt="" />
+			<img src={WEESP_IMAGE_URLS.multispectral} alt="" />
 		</div>
 		<div class="divider" style="left: {revealPct}%"></div>
-		<div class="rgb-lbl label">RGB</div>
-		<div class="lidar-lbl label" style="opacity: {progress > 0.15 ? 1 : 0}">LiDAR · RELIEF</div>
+		<div class="lidar-lbl label">LiDAR</div>
+		<div class="ndvi-lbl label" style="opacity: {progress > 0.15 ? 1 : 0}">NDVI · STRESS</div>
 		<div class="frame"></div>
 	</div>
 {/if}
@@ -77,10 +77,8 @@
 		height: 100%;
 		object-fit: fill;
 	}
-	.rgb {
-		mix-blend-mode: normal;
-	}
-	.lidar {
+	.lidar,
+	.multispectral {
 		mix-blend-mode: screen;
 	}
 	.divider {
@@ -105,10 +103,10 @@
 		text-shadow: 0 1px 2px rgba(0, 0, 0, 0.6);
 		transition: opacity 0.3s;
 	}
-	.rgb-lbl {
+	.lidar-lbl {
 		left: 8px;
 	}
-	.lidar-lbl {
+	.ndvi-lbl {
 		right: 8px;
 		color: #ffd066;
 	}

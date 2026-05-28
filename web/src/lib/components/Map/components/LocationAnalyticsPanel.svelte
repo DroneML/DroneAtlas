@@ -22,14 +22,20 @@
 		'ml-prediction': '#c084fc'
 	};
 
-	const chartMetrics = [
-		{ label: 'Prediction peak', value: '99%', trend: 'hover', color: '#c084fc' },
-		{ label: 'Vegetation contrast', value: '0.71', trend: '+34%', color: '#67e985' },
-		{ label: 'LiDAR relief', value: '0.42 m', trend: '+11%', color: '#ffd166' }
-	];
+	let visibleLayers: ProjectLayerDef[] = [];
+	let visibleLayerIds = new Set<string>();
+	let activeLayerCount = 0;
+
+	$: visibleLayers =
+		$selectedLocation?.layers.filter(
+			(layer) =>
+				$enabledProjectLayers.has(layer.id) || Boolean($rasterLayers.get(`project-${layer.id}`)?.isVisible)
+		) ?? [];
+	$: visibleLayerIds = new Set(visibleLayers.map((layer) => layer.id));
+	$: activeLayerCount = visibleLayers.length + (siteModelVisible ? 1 : 0);
 
 	function isLayerEnabled(layerId: string): boolean {
-		return $enabledProjectLayers.has(layerId);
+		return visibleLayerIds.has(layerId);
 	}
 
 	function getLayerColor(type: ProjectLayerDef['type']): string {
@@ -50,12 +56,10 @@
 	}
 
 	function handleOpacityInput(layer: ProjectLayerDef, value: number) {
+		if (!isLayerEnabled(layer.id)) toggleProjectLayer(layer, true);
 		updateProjectLayerOpacity(layer.id, value / 100);
 	}
 
-	function enabledLayers(layers: ProjectLayerDef[]): ProjectLayerDef[] {
-		return layers.filter((layer) => isLayerEnabled(layer.id));
-	}
 </script>
 
 {#if $selectedLocation}
@@ -70,18 +74,20 @@
 
 		<section class="panel-card layer-card">
 			<div class="card-title">
-				<span>Layer Controls</span>
-				<small>{enabledLayers($selectedLocation.layers).length + (siteModelVisible ? 1 : 0)} active</small>
+				<span>Layer Transparency</span>
+				<small>{activeLayerCount} active</small>
 			</div>
 			<div class="layer-list">
 				{#if $selectedLocation.id === 'weesp-castle'}
 					<div class="layer-row enabled reconstruction-row">
 						<label>
-							<input
-								type="checkbox"
-								checked={siteModelVisible}
-								onchange={(event) => handleSiteModelToggle(event.currentTarget.checked)}
-							/>
+							{#key siteModelVisible}
+								<input
+									type="checkbox"
+									checked={siteModelVisible}
+									onchange={(event) => handleSiteModelToggle(event.currentTarget.checked)}
+								/>
+							{/key}
 							<span class="swatch reconstruction-swatch"></span>
 							<span class="layer-name">3D reconstruction</span>
 							<span class="layer-value">castle</span>
@@ -94,78 +100,46 @@
 					{@const opacity = getOpacity(layer)}
 					<div class="layer-row" class:enabled>
 						<label>
-							<input
-								type="checkbox"
-								checked={enabled}
-								onchange={(event) => handleLayerToggle(layer, event.currentTarget.checked)}
-							/>
+							{#key enabled}
+								<input
+									type="checkbox"
+									checked={enabled}
+									onchange={(event) => handleLayerToggle(layer, event.currentTarget.checked)}
+								/>
+							{/key}
 							<span class="swatch" style="background: {getLayerColor(layer.type)}"></span>
 							<span class="layer-name">{layer.name}</span>
 							<span class="layer-value">{opacity}%</span>
 						</label>
-						{#if enabled}
-							<input
-								class="opacity-slider"
-								type="range"
-								min="0"
-								max="100"
-								value={opacity}
-								oninput={(event) => handleOpacityInput(layer, Number(event.currentTarget.value))}
-							/>
-						{/if}
+						<input
+							class="opacity-slider"
+							type="range"
+							min="0"
+						max="100"
+						value={opacity}
+						aria-label="{layer.name} transparency"
+						oninput={(event) => handleOpacityInput(layer, Number(event.currentTarget.value))}
+						/>
 					</div>
 				{/each}
 			</div>
-		</section>
-
-		<section class="panel-card metrics-card">
-			<div class="card-title">
-				<span>Analysis Tools</span>
-				<small>auto-assist</small>
-			</div>
-			<div class="metric-grid">
-				{#each chartMetrics as metric}
-					<div class="metric" style="--metric-color: {metric.color}">
-						<span>{metric.label}</span>
-						<strong>{metric.value}</strong>
-						<small>{metric.trend}</small>
-					</div>
-				{/each}
-			</div>
-			<svg class="signal-chart" viewBox="0 0 320 128" role="img" aria-label="Combined sensor signal chart">
-				<defs>
-					<linearGradient id="thermalFill" x1="0" x2="0" y1="0" y2="1">
-						<stop offset="0%" stop-color="#ff9b54" stop-opacity="0.55" />
-						<stop offset="100%" stop-color="#ff9b54" stop-opacity="0" />
-					</linearGradient>
-					<linearGradient id="mlFill" x1="0" x2="0" y1="0" y2="1">
-						<stop offset="0%" stop-color="#67e985" stop-opacity="0.45" />
-						<stop offset="100%" stop-color="#67e985" stop-opacity="0" />
-					</linearGradient>
-				</defs>
-				<path class="chart-grid" d="M12 24H308M12 64H308M12 104H308" />
-				<path class="chart-area thermal" d="M12 102 C48 96 64 78 92 58 C120 35 140 8 164 26 C196 50 202 86 232 76 C260 68 284 86 308 96 L308 118 L12 118 Z" />
-				<path class="chart-line thermal-line" d="M12 102 C48 96 64 78 92 58 C120 35 140 8 164 26 C196 50 202 86 232 76 C260 68 284 86 308 96" />
-				<path class="chart-area ml" d="M12 108 C42 100 62 90 86 72 C120 47 148 50 178 62 C208 74 222 46 252 42 C282 40 294 72 308 80 L308 118 L12 118 Z" />
-				<path class="chart-line ml-line" d="M12 108 C42 100 62 90 86 72 C120 47 148 50 178 62 C208 74 222 46 252 42 C282 40 294 72 308 80" />
-			</svg>
 		</section>
 
 		<section class="panel-card stack-card">
 			<div class="card-title">
 				<span>Evidence Stack</span>
-				<small>{enabledLayers($selectedLocation.layers).length} layers</small>
+				<small>{visibleLayers.length} layers</small>
 			</div>
 			<div class="stack-stage">
-				{#each enabledLayers($selectedLocation.layers) as layer, i (layer.id)}
+				{#each visibleLayers as layer, i (layer.id)}
 					<div
 						class="stack-plane"
-						style="--i: {i}; --plane-color: {getLayerColor(layer.type)}; --total: {enabledLayers($selectedLocation.layers).length}"
+						style="--i: {i}; --plane-color: {getLayerColor(layer.type)}; --total: {visibleLayers.length}"
 					>
 						<span>{layer.name}</span>
 					</div>
 				{/each}
-				{#if enabledLayers($selectedLocation.layers).length === 0}
+				{#if visibleLayers.length === 0}
 					<div class="stack-empty">Enable layers to build the stack</div>
 				{/if}
 			</div>
@@ -344,69 +318,6 @@
 		accent-color: #61d8ff;
 	}
 
-	.metric-grid {
-		display: grid;
-		grid-template-columns: repeat(3, minmax(0, 1fr));
-		gap: 8px;
-	}
-
-	.metric {
-		padding: 9px;
-		border: 1px solid color-mix(in srgb, var(--metric-color) 35%, transparent);
-		border-radius: 12px;
-		background: color-mix(in srgb, var(--metric-color) 9%, transparent);
-	}
-
-	.metric span,
-	.metric small {
-		display: block;
-		font-size: 9px;
-		line-height: 1.2;
-		color: rgba(232, 241, 255, 0.55);
-	}
-
-	.metric strong {
-		display: block;
-		margin: 4px 0 2px;
-		font-size: 17px;
-		font-variant-numeric: tabular-nums;
-		color: color-mix(in srgb, var(--metric-color) 84%, white);
-	}
-
-	.signal-chart {
-		width: 100%;
-		height: 126px;
-		margin-top: 10px;
-	}
-
-	.chart-grid {
-		fill: none;
-		stroke: rgba(255, 255, 255, 0.08);
-		stroke-width: 1;
-	}
-
-	.chart-area.thermal {
-		fill: url(#thermalFill);
-	}
-
-	.chart-area.ml {
-		fill: url(#mlFill);
-	}
-
-	.chart-line {
-		fill: none;
-		stroke-width: 2.5;
-		stroke-linecap: round;
-	}
-
-	.thermal-line {
-		stroke: #ff9b54;
-	}
-
-	.ml-line {
-		stroke: #67e985;
-	}
-
 	.stack-stage {
 		position: relative;
 		height: 130px;
@@ -459,7 +370,6 @@
 		}
 
 		.panel-header,
-		.metrics-card,
 		.stack-card {
 			display: none;
 		}

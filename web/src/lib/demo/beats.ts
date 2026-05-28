@@ -141,10 +141,10 @@ export function buildBeats(refs: SceneRefs): Beat[] {
 		{
 			id: 'sensors',
 			title: 'Many Sensors, One Hidden Site',
-			subtitle: 'RGB · LiDAR · multispectral · thermal',
+			subtitle: 'LiDAR · multispectral · thermal · probability',
 			caption: 'Each sensor sees a different physical signal.',
 			presenterNote:
-				'No single layer tells the full story. Optical imagery shows cropmarks and soil marks. Thermal data shows heat-retention differences. Multispectral indices show vegetation stress. LiDAR and elevation models show micromorphology.',
+				'No single layer tells the full story. Thermal data shows heat-retention differences. Multispectral indices show vegetation stress. LiDAR and elevation models show micromorphology. The probability raster keeps the inspection numeric.',
 			showTelemetry: false,
 			...at(9),
 			enter: () => {
@@ -157,10 +157,9 @@ export function buildBeats(refs: SceneRefs): Beat[] {
 			tick: (_, t) => {
 				const eased = easing.easeInOut(t);
 				refs.setSensorStackProgress(Math.max(0, (t - 0.1) / 0.82));
-				if (t > 0.16) refs.setSensorActive('rgb', true);
-				if (t > 0.34) refs.setSensorActive('lidar', true);
-				if (t > 0.54) refs.setSensorActive('multispectral', true);
-				if (t > 0.74) refs.setSensorActive('thermal', true);
+				if (t > 0.18) refs.setSensorActive('lidar', true);
+				if (t > 0.46) refs.setSensorActive('multispectral', true);
+				if (t > 0.72) refs.setSensorActive('thermal', true);
 				map.jumpTo({
 					center: path.center,
 					zoom: 15.2,
@@ -206,7 +205,7 @@ export function buildBeats(refs: SceneRefs): Beat[] {
 			subtitle: 'Visual evidence for archaeological anomaly detection',
 			caption: 'For the demo, the layer stack is enough to explain the signal.',
 			presenterNote:
-				'For this demo we skip heavy processing and compare the georeferenced image layers directly. RGB gives surface context, LiDAR shows micro-relief, multispectral shows vegetation stress, and thermal shows heat-retention contrast.',
+				'For this demo we skip heavy processing and compare the georeferenced image layers directly. LiDAR shows micro-relief, multispectral shows vegetation stress, thermal shows heat-retention contrast, and the probability raster adds numeric inspection.',
 			showTelemetry: false,
 			...at(8),
 			enter: () => {
@@ -229,7 +228,7 @@ export function buildBeats(refs: SceneRefs): Beat[] {
 		{
 			id: 'ml',
 			title: 'How Layer Interpretation Works',
-			subtitle: 'RGB + LiDAR + NDVI + thermal',
+			subtitle: 'LiDAR + NDVI + thermal + probability',
 			caption: 'Fast visual toggling keeps the archaeological interpretation in the loop.',
 			presenterNote:
 				'The expert compares physical signals rather than trusting one layer. A wall may appear as thermal contrast, vegetation stress, and micro-topography; a moat can show different moisture, relief, or heat capacity signatures.',
@@ -390,7 +389,7 @@ export function buildBeats(refs: SceneRefs): Beat[] {
 			subtitle: 'A visual evidence stack for expert interpretation',
 			caption: 'The layer stack shows where buried signals may line up.',
 			presenterNote:
-				'The layer stack does not declare archaeological truth. It makes different physical signals visible in one place so expert interpretation can focus on areas where RGB, LiDAR, multispectral, and thermal evidence line up.',
+				'The layer stack does not declare archaeological truth. It makes different physical signals visible in one place so expert interpretation can focus on areas where LiDAR, multispectral, thermal, and probability evidence line up.',
 			showTelemetry: true,
 			...at(14),
 			enter: () => {
