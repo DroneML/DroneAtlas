@@ -623,7 +623,7 @@
 					'fill-extrusion-height': ['get', 'height'],
 					'fill-extrusion-base': ['get', 'base'],
 					'fill-extrusion-opacity': 1,
-					'fill-extrusion-vertical-gradient': true
+				'fill-extrusion-vertical-gradient': false
 				}
 			} as any);
 		}
@@ -786,19 +786,19 @@
 		return {
 			type: 'FeatureCollection',
 			features: [
-				ring('outer-wall-trace', [0.12, 0.08, 0.86, 0.86], [0.17, 0.14, 0.8, 0.79], 4.6),
-				ring('inner-wall-trace', [0.28, 0.27, 0.72, 0.73], [0.34, 0.34, 0.66, 0.66], 5.8),
-				ring('central-keep-trace', [0.47, 0.44, 0.59, 0.56], [0.5, 0.48, 0.56, 0.52], 7.8, '#ff2da8'),
-				box('west-annex-trace', 0.275, 0.555, 0.38, 0.66, 6.6, '#cc2cff'),
-				box('south-hall-trace', 0.34, 0.705, 0.61, 0.81, 4.8, '#bd246f'),
-				box('south-gate-hotspot', 0.25, 0.775, 0.37, 0.9, 3.8, '#b77b23'),
+				ring('outer-wall-trace', [0.12, 0.08, 0.86, 0.86], [0.145, 0.11, 0.835, 0.835], 1.5),
+				ring('inner-wall-trace', [0.28, 0.27, 0.72, 0.73], [0.31, 0.305, 0.69, 0.695], 2.2),
+				ring('central-tower-trace', [0.48, 0.44, 0.585, 0.56], [0.515, 0.48, 0.555, 0.52], 8.8, '#ff2da8'),
+				box('west-annex-trace', 0.285, 0.565, 0.375, 0.65, 3.6, '#cc2cff'),
+				box('south-hall-trace', 0.35, 0.715, 0.6, 0.79, 1.8, '#bd246f'),
+				box('south-gate-hotspot', 0.255, 0.79, 0.355, 0.875, 1.2, '#b77b23'),
 				rectLine('outer-moat', 'moat', 0.1, 0.07, 0.88, 0.88),
 				rectLine('inner-moat', 'moat', 0.275, 0.265, 0.725, 0.735),
 				rectLine('outer-wall-outline', 'wall-outline', 0.12, 0.08, 0.86, 0.86),
 				rectLine('inner-wall-outline', 'wall-outline', 0.28, 0.27, 0.72, 0.73),
-				rectLine('keep-outline', 'wall-outline', 0.47, 0.44, 0.59, 0.56),
-				rectLine('west-annex-outline', 'wall-outline', 0.275, 0.555, 0.38, 0.66),
-				rectLine('hall-outline', 'wall-outline', 0.34, 0.705, 0.61, 0.81)
+				rectLine('tower-outline', 'wall-outline', 0.48, 0.44, 0.585, 0.56),
+				rectLine('west-annex-outline', 'wall-outline', 0.285, 0.565, 0.375, 0.65),
+				rectLine('hall-outline', 'wall-outline', 0.35, 0.715, 0.6, 0.79)
 			]
 		};
 	}
