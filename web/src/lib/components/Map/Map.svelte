@@ -85,10 +85,12 @@
 		'weesp-probability': 0.62
 	};
 	const weespRevealLayerIds = ['weesp-lidar', 'weesp-multispectral', 'weesp-thermal'];
+	const lockCameraAtWeespDemoEnd = true;
+	let hasInitializedWeespFinalState = false;
 	const siteReconstructionBaseOpacity: Record<string, number> = {
 		'weesp-site-moat-glow': 0.42,
 		'weesp-site-moat-line': 0.95,
-		'weesp-site-buildings': 0.42,
+		'weesp-site-buildings': 1,
 		'weesp-site-wall-outlines': 1
 	};
 	let annotationDrawingEnabled = false;
@@ -230,8 +232,12 @@
 		map = event.detail.map;
 		isStyleLoaded = true;
 		(window as any).__droneAtlasMap = map;
-		map.jumpTo({ center: [5.5, 52.0], zoom: 7, bearing: 0, pitch: 0 });
-		setTimeout(() => runWeespDemoSequence(), 450);
+		if (lockCameraAtWeespDemoEnd) {
+			showWeespDemoFinalState();
+		} else {
+			map.jumpTo({ center: [5.5, 52.0], zoom: 7, bearing: 0, pitch: 0 });
+			setTimeout(() => runWeespDemoSequence(), 450);
+		}
 
 		// Add hover event listeners
 		map.on('mousemove', handleCursorChange);
@@ -268,6 +274,7 @@
 		if (map) {
 			map.once('idle', () => {
 				serializeFiltersToUrl(map, globalOpacity);
+				if (lockCameraAtWeespDemoEnd) applyCurrentWeespReconstructionState();
 			});
 		}
 	}
@@ -501,8 +508,46 @@
 		});
 	}
 
+	function showWeespDemoFinalState() {
+		const location = get(projectLocations).find((item) => item.id === 'weesp-castle');
+		if (!location || !map) return;
+
+		clearWeespDemoTimers();
+		selectLocation(location.id);
+		for (const layer of location.layers) setWeespLayerVisible(location, layer.id, true);
+		weespAnalysisPopupVisible = false;
+		siteModelVisible = true;
+		if (!hasInitializedWeespFinalState) {
+			siteModelOpacity = 100;
+			hasInitializedWeespFinalState = true;
+		}
+		map.jumpTo({
+			center: location.center,
+			zoom: location.zoom,
+			bearing: location.bearing ?? 0,
+			pitch: location.pitch ?? 0
+		});
+		applySiteReconstructionState(location);
+	}
+
+	function applyCurrentWeespReconstructionState() {
+		const location = get(projectLocations).find((item) => item.id === 'weesp-castle');
+		if (location) applySiteReconstructionState(location);
+	}
+
+	function applySiteReconstructionState(location: ProjectLocation) {
+		ensureSiteReconstructionLayers(location);
+		setSiteReconstructionVisibility(true);
+		setSiteReconstructionOpacity(siteModelOpacity);
+		moveSiteReconstructionLayersToTop();
+	}
+
 	function handleResetView() {
-		runWeespDemoSequence();
+		if (lockCameraAtWeespDemoEnd) {
+			showWeespDemoFinalState();
+		} else {
+			runWeespDemoSequence();
+		}
 	}
 
 	function handleFloatingDroneToggle(event: CustomEvent<{ disabled: boolean }>) {
@@ -577,7 +622,7 @@
 					'fill-extrusion-color': ['get', 'color'],
 					'fill-extrusion-height': ['get', 'height'],
 					'fill-extrusion-base': ['get', 'base'],
-					'fill-extrusion-opacity': 0.42,
+					'fill-extrusion-opacity': 1,
 					'fill-extrusion-vertical-gradient': true
 				}
 			} as any);
@@ -661,6 +706,14 @@
 			const [west, south, east, north] = WEESP_IMAGE_BOUNDS;
 			return [west + imageU * (east - west), north - imageV * (north - south)];
 		};
+		const rectPoints = (left: number, top: number, right: number, bottom: number) => [
+			[left, top],
+			[right, top],
+			[right, bottom],
+			[left, bottom]
+		] as Array<[number, number]>;
+		const closeRing = (points: Array<[number, number]>) =>
+			[...points, points[0]].map(([u, v]) => uvToLngLat(u, v));
 
 		const polygon = (
 			id: string,
@@ -673,24 +726,47 @@
 			properties: { id, height, base, color },
 			geometry: {
 				type: 'Polygon',
-				coordinates: [[...points, points[0]].map(([u, v]) => uvToLngLat(u, v))]
+				coordinates: [closeRing(points)]
+			}
+		});
+		const ring = (
+			id: string,
+			outer: [number, number, number, number],
+			inner: [number, number, number, number],
+			height: number,
+			color = '#d98528',
+			base = 0.6
+		) => ({
+			type: 'Feature',
+			properties: { id, height, base, color },
+			geometry: {
+				type: 'Polygon',
+				coordinates: [
+					closeRing(rectPoints(...outer)),
+					closeRing([...rectPoints(...inner)].reverse())
+				]
 			}
 		});
 
-		const box = (id: string, left: number, top: number, right: number, bottom: number, height: number, color?: string) =>
-			polygon(
-				id,
-				[
-					[left, top],
-					[right, top],
-					[right, bottom],
-					[left, bottom]
-				],
-				height,
-				color
-			);
+		const box = (
+			id: string,
+			left: number,
+			top: number,
+			right: number,
+			bottom: number,
+			height: number,
+			color?: string
+		) =>
+			polygon(id, rectPoints(left, top, right, bottom), height, color);
 
-		const rectLine = (id: string, className: string, left: number, top: number, right: number, bottom: number) =>
+		const rectLine = (
+			id: string,
+			className: string,
+			left: number,
+			top: number,
+			right: number,
+			bottom: number
+		) =>
 			line(id, className, [
 				[left, top],
 				[right, top],
@@ -710,16 +786,19 @@
 		return {
 			type: 'FeatureCollection',
 			features: [
-				box('west-tower', 0.405, 0.455, 0.485, 0.535, 7, '#cc2cff'),
-				box('inner-keep', 0.545, 0.405, 0.63, 0.49, 10, '#ff2da8'),
-				box('south-hall', 0.445, 0.575, 0.625, 0.685, 5, '#bd246f'),
-				box('gate-wing', 0.365, 0.675, 0.46, 0.735, 4, '#bd246f'),
-				box('east-wall', 0.695, 0.465, 0.745, 0.615, 5, '#d33487'),
-				rectLine('outer-moat', 'moat', 0.32, 0.2, 0.8, 0.73),
-				rectLine('inner-moat', 'moat', 0.405, 0.27, 0.735, 0.655),
-				rectLine('tower-outline', 'wall-outline', 0.405, 0.455, 0.485, 0.535),
-				rectLine('keep-outline', 'wall-outline', 0.545, 0.405, 0.63, 0.49),
-				rectLine('hall-outline', 'wall-outline', 0.445, 0.575, 0.625, 0.685)
+				ring('outer-wall-trace', [0.12, 0.08, 0.86, 0.86], [0.17, 0.14, 0.8, 0.79], 4.6),
+				ring('inner-wall-trace', [0.28, 0.27, 0.72, 0.73], [0.34, 0.34, 0.66, 0.66], 5.8),
+				ring('central-keep-trace', [0.47, 0.44, 0.59, 0.56], [0.5, 0.48, 0.56, 0.52], 7.8, '#ff2da8'),
+				box('west-annex-trace', 0.275, 0.555, 0.38, 0.66, 6.6, '#cc2cff'),
+				box('south-hall-trace', 0.34, 0.705, 0.61, 0.81, 4.8, '#bd246f'),
+				box('south-gate-hotspot', 0.25, 0.775, 0.37, 0.9, 3.8, '#b77b23'),
+				rectLine('outer-moat', 'moat', 0.1, 0.07, 0.88, 0.88),
+				rectLine('inner-moat', 'moat', 0.275, 0.265, 0.725, 0.735),
+				rectLine('outer-wall-outline', 'wall-outline', 0.12, 0.08, 0.86, 0.86),
+				rectLine('inner-wall-outline', 'wall-outline', 0.28, 0.27, 0.72, 0.73),
+				rectLine('keep-outline', 'wall-outline', 0.47, 0.44, 0.59, 0.56),
+				rectLine('west-annex-outline', 'wall-outline', 0.275, 0.555, 0.38, 0.66),
+				rectLine('hall-outline', 'wall-outline', 0.34, 0.705, 0.61, 0.81)
 			]
 		};
 	}
