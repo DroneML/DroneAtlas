@@ -10,8 +10,12 @@
 	import { rasterLayers } from '$lib/stores/raster.store';
 
 	export let siteModelVisible = true;
+	export let siteModelOpacity = 100;
 
-	const dispatch = createEventDispatcher<{ sitemodeltoggle: { visible: boolean } }>();
+	const dispatch = createEventDispatcher<{
+		sitemodeltoggle: { visible: boolean };
+		sitemodelopacity: { opacity: number };
+	}>();
 
 	const layerColors: Record<ProjectLayerDef['type'], string> = {
 		rgb: '#62a7ff',
@@ -24,6 +28,7 @@
 
 	let visibleLayers: ProjectLayerDef[] = [];
 	let visibleLayerIds = new Set<string>();
+	let layerChecked: Record<string, boolean> = {};
 	let activeLayerCount = 0;
 
 	$: visibleLayers =
@@ -32,10 +37,11 @@
 				$enabledProjectLayers.has(layer.id) || Boolean($rasterLayers.get(`project-${layer.id}`)?.isVisible)
 		) ?? [];
 	$: visibleLayerIds = new Set(visibleLayers.map((layer) => layer.id));
+	$: layerChecked = Object.fromEntries(($selectedLocation?.layers ?? []).map((layer) => [layer.id, visibleLayerIds.has(layer.id)]));
 	$: activeLayerCount = visibleLayers.length + (siteModelVisible ? 1 : 0);
 
 	function isLayerEnabled(layerId: string): boolean {
-		return visibleLayerIds.has(layerId);
+		return layerChecked[layerId] ?? false;
 	}
 
 	function getLayerColor(type: ProjectLayerDef['type']): string {
@@ -55,6 +61,11 @@
 		dispatch('sitemodeltoggle', { visible: checked });
 	}
 
+	function handleSiteModelOpacityInput(value: number) {
+		if (!siteModelVisible) dispatch('sitemodeltoggle', { visible: true });
+		dispatch('sitemodelopacity', { opacity: value });
+	}
+
 	function handleOpacityInput(layer: ProjectLayerDef, value: number) {
 		if (!isLayerEnabled(layer.id)) toggleProjectLayer(layer, true);
 		updateProjectLayerOpacity(layer.id, value / 100);
@@ -64,14 +75,6 @@
 
 {#if $selectedLocation}
 	<aside class="analytics-panel" aria-label="Location analytics">
-		<div class="panel-header">
-			<div>
-				<div class="eyebrow">Live Site Analysis</div>
-				<h2>{$selectedLocation.name}</h2>
-			</div>
-			<div class="status-pill"><span></span> demo-ready</div>
-		</div>
-
 		<section class="panel-card layer-card">
 			<div class="card-title">
 				<span>Layer Transparency</span>
@@ -90,17 +93,26 @@
 							{/key}
 							<span class="swatch reconstruction-swatch"></span>
 							<span class="layer-name">3D reconstruction</span>
-							<span class="layer-value">castle</span>
+							<span class="layer-value">{siteModelOpacity}%</span>
 						</label>
+						<input
+							class="opacity-slider"
+							type="range"
+							min="0"
+							max="100"
+							value={siteModelOpacity}
+							aria-label="3D reconstruction transparency"
+							oninput={(event) => handleSiteModelOpacityInput(Number(event.currentTarget.value))}
+						/>
 						<div class="model-location-hint">Centered on the suspected tower and wall footprint.</div>
 					</div>
 				{/if}
 				{#each $selectedLocation.layers as layer (layer.id)}
-					{@const enabled = isLayerEnabled(layer.id)}
+					{@const enabled = layerChecked[layer.id] ?? false}
 					{@const opacity = getOpacity(layer)}
 					<div class="layer-row" class:enabled>
 						<label>
-							{#key enabled}
+							{#key `${layer.id}-${enabled}`}
 								<input
 									type="checkbox"
 									checked={enabled}
@@ -170,53 +182,12 @@
 		backdrop-filter: blur(20px) saturate(140%);
 	}
 
-	.panel-header {
-		display: flex;
-		align-items: flex-start;
-		justify-content: space-between;
-		gap: 12px;
-		padding: 4px 4px 2px;
-	}
-
-	.eyebrow,
 	.card-title small {
 		font-size: 10px;
 		font-weight: 700;
 		letter-spacing: 0.18em;
 		text-transform: uppercase;
 		color: rgba(129, 220, 255, 0.76);
-	}
-
-	h2 {
-		margin: 4px 0 0;
-		font-size: 18px;
-		line-height: 1.1;
-		font-weight: 750;
-		letter-spacing: -0.03em;
-	}
-
-	.status-pill {
-		display: inline-flex;
-		align-items: center;
-		gap: 6px;
-		padding: 6px 9px;
-		border: 1px solid rgba(103, 233, 133, 0.22);
-		border-radius: 999px;
-		background: rgba(103, 233, 133, 0.08);
-		font-size: 10px;
-		font-weight: 800;
-		text-transform: uppercase;
-		letter-spacing: 0.12em;
-		color: rgba(179, 255, 195, 0.9);
-		white-space: nowrap;
-	}
-
-	.status-pill span {
-		width: 7px;
-		height: 7px;
-		border-radius: 50%;
-		background: #67e985;
-		box-shadow: 0 0 14px #67e985;
 	}
 
 	.panel-card {
@@ -369,7 +340,6 @@
 			border-radius: 18px;
 		}
 
-		.panel-header,
 		.stack-card {
 			display: none;
 		}

@@ -10,7 +10,7 @@
 		toggleProjectLayer,
 		updateProjectLayerOpacity
 	} from '$lib/stores/projects.store';
-	import { rasterLayers, updateAllRasterLayersOpacity } from '$lib/stores/raster.store';
+	import { updateAllRasterLayersOpacity } from '$lib/stores/raster.store';
 	import {
 		loadStoredSettings,
 		saveSettingsToStorage
@@ -115,23 +115,6 @@
 		return layerColors[type] ?? '#62a7ff';
 	}
 
-	function isLayerEnabled(layerId: string): boolean {
-		return $enabledProjectLayers.has(layerId);
-	}
-
-	function getLayerOpacity(layer: ProjectLayerDef): number {
-		const rasterLayer = $rasterLayers.get(`project-${layer.id}`);
-		return Math.round((rasterLayer?.opacity ?? layer.opacity ?? 0.8) * 100);
-	}
-
-	function handleLayerToggle(layer: ProjectLayerDef, checked: boolean) {
-		toggleProjectLayer(layer, checked);
-		if (checked) updateProjectLayerOpacity(layer.id, weespShowcaseOpacity[layer.id] ?? (layer.opacity ?? 0.48));
-	}
-
-	function handleLayerOpacity(layer: ProjectLayerDef, value: number) {
-		updateProjectLayerOpacity(layer.id, value / 100);
-	}
 </script>
 
 <div id="locations-sidebar" class="locations-panel" class:collapsed>
@@ -231,38 +214,6 @@
 					{#if $selectedLocation.period}
 						<div class="period-pill">{$selectedLocation.period}</div>
 					{/if}
-				</section>
-
-				<section class="active-layer-card">
-					<div class="section-title">Layer Transparency</div>
-					<div class="active-layer-list">
-						{#each $selectedLocation.layers as layer (layer.id)}
-							{@const enabled = isLayerEnabled(layer.id)}
-							{@const opacity = getLayerOpacity(layer)}
-							<div class="active-layer-row" class:enabled>
-								<label class="active-layer-toggle">
-									<input
-										type="checkbox"
-										checked={enabled}
-										onchange={(event) => handleLayerToggle(layer, event.currentTarget.checked)}
-									/>
-									<span class="layer-dot" style="background: {getLayerColor(layer.type)}"></span>
-									<span>{layer.name}</span>
-									<strong>{opacity}%</strong>
-								</label>
-								<input
-									class="layer-opacity-slider"
-									type="range"
-									min="0"
-									max="100"
-									value={opacity}
-									disabled={!enabled}
-									aria-label="{layer.name} transparency"
-									oninput={(event) => handleLayerOpacity(layer, Number(event.currentTarget.value))}
-								/>
-							</div>
-						{/each}
-					</div>
 				</section>
 
 				{#if $selectedLocation.facts}
@@ -373,7 +324,7 @@
 <style>
 	.locations-panel {
 		position: absolute;
-		left: 76px;
+		left: 16px;
 		top: 84px;
 		z-index: 36;
 		width: 342px;
@@ -506,8 +457,7 @@
 	.mission-card,
 	.case-card,
 	.workflow-card,
-	.findings-card,
-	.active-layer-card {
+	.findings-card {
 		border: 1px solid rgba(167, 213, 255, 0.12);
 		border-radius: 16px;
 		background: rgba(255, 255, 255, 0.045);
@@ -626,8 +576,7 @@
 		margin-top: 8px;
 	}
 
-	.layer-dot-row span,
-	.layer-dot {
+	.layer-dot-row span {
 		width: 8px;
 		height: 8px;
 		border-radius: 50%;
@@ -685,8 +634,7 @@
 	}
 
 	.workflow-card,
-	.findings-card,
-	.active-layer-card {
+	.findings-card {
 		margin-top: 10px;
 		padding: 12px;
 	}
@@ -718,59 +666,6 @@
 		background: rgba(103, 233, 133, 0.07);
 		font-size: 10px;
 		color: rgba(208, 255, 218, 0.76);
-	}
-
-	.active-layer-list {
-		display: grid;
-		gap: 6px;
-		margin-top: 9px;
-	}
-
-	.active-layer-row {
-		display: grid;
-		gap: 7px;
-		padding: 8px;
-		border: 1px solid rgba(255, 255, 255, 0.06);
-		border-radius: 12px;
-		background: rgba(255, 255, 255, 0.035);
-		color: rgba(232, 241, 255, 0.52);
-	}
-
-	.active-layer-row.enabled {
-		border-color: rgba(97, 216, 255, 0.18);
-		background: rgba(97, 216, 255, 0.055);
-		color: rgba(232, 241, 255, 0.78);
-	}
-
-	.active-layer-toggle {
-		display: grid;
-		grid-template-columns: auto auto minmax(0, 1fr) auto;
-		align-items: center;
-		gap: 8px;
-		font-size: 11px;
-		font-weight: 750;
-	}
-
-	.active-layer-toggle span:not(.layer-dot) {
-		overflow: hidden;
-		text-overflow: ellipsis;
-		white-space: nowrap;
-	}
-
-	.active-layer-toggle strong {
-		font-size: 10px;
-		font-weight: 850;
-		color: rgba(232, 241, 255, 0.58);
-	}
-
-	.layer-opacity-slider {
-		width: 100%;
-		accent-color: #61d8ff;
-		opacity: 0.95;
-	}
-
-	.layer-opacity-slider:disabled {
-		opacity: 0.25;
 	}
 
 	.settings-modal {

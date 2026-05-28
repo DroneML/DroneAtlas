@@ -347,7 +347,10 @@ export class DroneLayer implements maplibregl.CustomLayerInterface {
 		return new THREE.Points(geo, mat);
 	}
 
-	private buildSiteModel(center: [number, number], opts: { rotationDeg?: number } = {}): THREE.Group {
+	private buildSiteModel(
+		center: [number, number],
+		opts: { rotationDeg?: number } = {}
+	): THREE.Group {
 		const root = new THREE.Group();
 		const centerMerc = maplibregl.MercatorCoordinate.fromLngLat(
 			{ lng: center[0], lat: center[1] },
@@ -360,23 +363,26 @@ export class DroneLayer implements maplibregl.CustomLayerInterface {
 		);
 		root.rotation.z = ((opts.rotationDeg ?? 0) * Math.PI) / 180;
 
-		const wallMat = new THREE.MeshStandardMaterial({
-			color: 0x3d173f,
-			emissive: 0xff2da8,
-			emissiveIntensity: 0.28,
+		const stoneMat = new THREE.MeshStandardMaterial({
+			color: 0xb8aa91,
+			emissive: 0x5a4032,
+			emissiveIntensity: 0.16,
 			metalness: 0.08,
-			roughness: 0.58,
-			transparent: true,
-			opacity: 0.9
+			roughness: 0.72
+		});
+		const ruinMat = new THREE.MeshStandardMaterial({
+			color: 0x8f826e,
+			emissive: 0x4d332c,
+			emissiveIntensity: 0.18,
+			metalness: 0.05,
+			roughness: 0.82
 		});
 		const roofMat = new THREE.MeshStandardMaterial({
-			color: 0x15121a,
-			emissive: 0x2e002e,
-			emissiveIntensity: 0.25,
+			color: 0x4d473c,
+			emissive: 0x221c18,
+			emissiveIntensity: 0.12,
 			metalness: 0.08,
-			roughness: 0.78,
-			transparent: true,
-			opacity: 0.92
+			roughness: 0.78
 		});
 		const outlineMat = new THREE.LineBasicMaterial({
 			color: 0xff2da8,
@@ -393,25 +399,43 @@ export class DroneLayer implements maplibregl.CustomLayerInterface {
 			transparent: true,
 			opacity: 0.9
 		});
+		const ironMat = new THREE.LineBasicMaterial({
+			color: 0x242423,
+			transparent: true,
+			opacity: 0.9
+		});
 
-		this.addBox(root, 0, 0, 46, 46, 18, wallMat);
-		this.addBox(root, 0, 0, 29, 29, 27, roofMat, 0.08);
-		this.addBox(root, 46, -34, 74, 50, 12, wallMat);
-		this.addBox(root, 28, -70, 26, 50, 9, wallMat);
-		this.addBox(root, 66, -4, 12, 70, 15, wallMat);
-
-		for (const [x, y] of [
-			[-34, 34],
-			[34, 34],
-			[-34, -34],
-			[86, -66]
-		]) {
-			this.addBox(root, x, y, 8, 8, 34, wallMat);
+		// Reference drawing: low left service wing, central gate court, tall gatehouse,
+		// rear hall with pitched roof, and a broken crenellated wall to the right.
+		this.addGabledBuilding(root, -76, -20, 72, 24, 9, 6, stoneMat, roofMat);
+		this.addGabledBuilding(root, -24, 4, 48, 32, 13, 7, stoneMat, roofMat);
+		this.addGabledBuilding(root, 18, 46, 92, 34, 22, 11, stoneMat, roofMat);
+		this.addBox(root, 46, -1, 30, 38, 30, stoneMat);
+		this.addCrenellations(root, 46, -1, 30, 38, 30, stoneMat, 6);
+		this.addBox(root, 87, -6, 50, 12, 12, ruinMat);
+		this.addBox(root, 118, -6, 11, 12, 18, ruinMat);
+		this.addCrenellations(root, 87, -6, 50, 12, 12, ruinMat, 7);
+		for (const [x, y, h] of [
+			[29, -23, 19],
+			[63, -23, 22],
+			[31, 21, 25],
+			[65, 21, 27]
+		] as Array<[number, number, number]>) {
+			this.addBox(root, x, y, 8, 8, h, stoneMat);
 		}
 
-		this.addRectLine(root, -2, 0, 64, 64, 20, outlineMat);
-		this.addRectLine(root, 46, -34, 90, 64, 14, outlineMat);
-		this.addRectLine(root, 28, -70, 36, 62, 11, outlineMat);
+		this.addRectLine(root, -76, -20, 76, 28, 11, outlineMat);
+		this.addRectLine(root, -24, 4, 52, 36, 15, outlineMat);
+		this.addRectLine(root, 46, -1, 36, 44, 33, outlineMat);
+		this.addRectLine(root, 18, 46, 98, 40, 24, outlineMat);
+		this.addRectLine(root, 94, -6, 68, 18, 16, outlineMat);
+
+		for (const x of [30, 36, 42, 48, 54, 60]) {
+			this.addLine(root, [x, -27, 0.8], [x, -27, 18], ironMat);
+		}
+		this.addLine(root, [28, -27, 9], [62, -27, 9], ironMat);
+		this.addLine(root, [28, -27, 18], [45, -27, 26], ironMat);
+		this.addLine(root, [62, -27, 18], [45, -27, 26], ironMat);
 		this.addPolygonLine(
 			root,
 			[
@@ -456,20 +480,20 @@ export class DroneLayer implements maplibregl.CustomLayerInterface {
 			trenchMat
 		);
 
-		const markerGeo = new THREE.SphereGeometry(3.2, 12, 12);
+		const markerGeo = new THREE.SphereGeometry(2.4, 12, 12);
 		const markerMat = new THREE.MeshBasicMaterial({ color: 0xfff454 });
 		for (const [x, y] of [
-			[-48, 2],
-			[-20, 24],
-			[18, 30],
-			[50, 8],
-			[68, -26],
-			[54, -62],
-			[16, -82],
-			[-22, -66]
+			[-104, -22],
+			[-66, -31],
+			[-22, -17],
+			[12, 20],
+			[46, -26],
+			[86, -12],
+			[118, -4],
+			[28, 50]
 		]) {
 			const marker = new THREE.Mesh(markerGeo, markerMat);
-			marker.position.set(x, y, 24);
+			marker.position.set(x, y, 5);
 			root.add(marker);
 		}
 
@@ -490,6 +514,105 @@ export class DroneLayer implements maplibregl.CustomLayerInterface {
 		mesh.position.set(x, y, height / 2);
 		mesh.rotation.z = rotation;
 		root.add(mesh);
+	}
+
+	private addBoxAt(
+		root: THREE.Group,
+		x: number,
+		y: number,
+		width: number,
+		depth: number,
+		height: number,
+		zBase: number,
+		material: THREE.Material,
+		rotation = 0
+	) {
+		const mesh = new THREE.Mesh(new THREE.BoxGeometry(width, depth, height), material);
+		mesh.position.set(x, y, zBase + height / 2);
+		mesh.rotation.z = rotation;
+		root.add(mesh);
+	}
+
+	private addGabledBuilding(
+		root: THREE.Group,
+		x: number,
+		y: number,
+		width: number,
+		depth: number,
+		wallHeight: number,
+		roofHeight: number,
+		wallMat: THREE.Material,
+		roofMat: THREE.Material
+	) {
+		this.addBox(root, x, y, width, depth, wallHeight, wallMat);
+
+		const hw = width / 2;
+		const hd = depth / 2;
+		const z = wallHeight;
+		const vertices = new Float32Array([
+			-hw,
+			-hd,
+			z,
+			hw,
+			-hd,
+			z,
+			0,
+			-hd,
+			z + roofHeight,
+			-hw,
+			hd,
+			z,
+			hw,
+			hd,
+			z,
+			0,
+			hd,
+			z + roofHeight
+		]);
+		const indices = [0, 1, 2, 3, 5, 4, 0, 3, 4, 0, 4, 1, 1, 4, 5, 1, 5, 2, 2, 5, 3, 2, 3, 0];
+		const geo = new THREE.BufferGeometry();
+		geo.setAttribute('position', new THREE.BufferAttribute(vertices, 3));
+		geo.setIndex(indices);
+		geo.computeVertexNormals();
+		const roof = new THREE.Mesh(geo, roofMat);
+		roof.position.set(x, y, 0);
+		root.add(roof);
+	}
+
+	private addCrenellations(
+		root: THREE.Group,
+		x: number,
+		y: number,
+		width: number,
+		depth: number,
+		zBase: number,
+		material: THREE.Material,
+		count: number
+	) {
+		for (let i = 0; i < count; i++) {
+			const fx = x - width / 2 + 4 + (i * (width - 8)) / Math.max(1, count - 1);
+			this.addBoxAt(root, fx, y - depth / 2 - 1.5, 4, 3, 5, zBase, material);
+			this.addBoxAt(root, fx, y + depth / 2 + 1.5, 4, 3, 5, zBase, material);
+		}
+		const sideCount = Math.max(2, Math.round(count * (depth / width)));
+		for (let i = 0; i < sideCount; i++) {
+			const fy = y - depth / 2 + 4 + (i * (depth - 8)) / Math.max(1, sideCount - 1);
+			this.addBoxAt(root, x - width / 2 - 1.5, fy, 3, 4, 5, zBase, material);
+			this.addBoxAt(root, x + width / 2 + 1.5, fy, 3, 4, 5, zBase, material);
+		}
+	}
+
+	private addLine(
+		root: THREE.Group,
+		from: [number, number, number],
+		to: [number, number, number],
+		material: THREE.LineBasicMaterial
+	) {
+		const geo = new THREE.BufferGeometry().setFromPoints([
+			new THREE.Vector3(...from),
+			new THREE.Vector3(...to)
+		]);
+		root.add(new THREE.Line(geo, material));
 	}
 
 	private addRectLine(

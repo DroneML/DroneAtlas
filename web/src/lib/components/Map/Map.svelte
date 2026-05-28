@@ -68,6 +68,7 @@
 	let navigationDroneTimer: ReturnType<typeof setTimeout> | null = null;
 	let navigationFlightRun = 0;
 	let siteModelVisible = true;
+	let siteModelOpacity = 100;
 	let weespAnalysisPopupVisible = false;
 	let weespDemoTimers: ReturnType<typeof setTimeout>[] = [];
 	const siteReconstructionSourceId = 'weesp-site-reconstruction';
@@ -84,6 +85,12 @@
 		'weesp-probability': 0.62
 	};
 	const weespRevealLayerIds = ['weesp-lidar', 'weesp-multispectral', 'weesp-thermal'];
+	const siteReconstructionBaseOpacity: Record<string, number> = {
+		'weesp-site-moat-glow': 0.42,
+		'weesp-site-moat-line': 0.95,
+		'weesp-site-buildings': 0.42,
+		'weesp-site-wall-outlines': 1
+	};
 	let annotationDrawingEnabled = false;
 	let annotationIsDrawing = false;
 	let annotationFeatures: AnnotationFeature[] = [];
@@ -464,7 +471,7 @@
 
 		clearWeespDemoTimers();
 		selectLocation(location.id);
-		for (const layer of location.layers) toggleProjectLayer(layer, false);
+		for (const layer of location.layers) setWeespLayerVisible(location, layer.id, false);
 		clearRenderedProjectLayers(location);
 		siteModelVisible = false;
 
@@ -591,6 +598,7 @@
 		}
 
 		setSiteReconstructionVisibility(siteModelVisible);
+		setSiteReconstructionOpacity(siteModelOpacity);
 		moveSiteReconstructionLayersToTop();
 	}
 
@@ -599,6 +607,20 @@
 		const visibility = visible ? 'visible' : 'none';
 		for (const layerId of siteReconstructionLayerIds) {
 			if (map.getLayer(layerId)) map.setLayoutProperty(layerId, 'visibility', visibility);
+		}
+	}
+
+	function setSiteReconstructionOpacity(opacityPercent: number) {
+		if (!map) return;
+		const opacity = Math.max(0, Math.min(1, opacityPercent / 100));
+		for (const layerId of siteReconstructionLayerIds) {
+			if (!map.getLayer(layerId)) continue;
+			const value = (siteReconstructionBaseOpacity[layerId] ?? 1) * opacity;
+			if (layerId === 'weesp-site-buildings') {
+				map.setPaintProperty(layerId, 'fill-extrusion-opacity', value);
+			} else {
+				map.setPaintProperty(layerId, 'line-opacity', value);
+			}
 		}
 	}
 
@@ -620,6 +642,16 @@
 	function handleSiteModelToggle(event: CustomEvent<{ visible: boolean }>) {
 		siteModelVisible = event.detail.visible;
 		setSiteReconstructionVisibility(siteModelVisible);
+		moveSiteReconstructionLayersToTop();
+	}
+
+	function handleSiteModelOpacity(event: CustomEvent<{ opacity: number }>) {
+		siteModelOpacity = Math.max(0, Math.min(100, event.detail.opacity));
+		if (!siteModelVisible) {
+			siteModelVisible = true;
+			setSiteReconstructionVisibility(true);
+		}
+		setSiteReconstructionOpacity(siteModelOpacity);
 		moveSiteReconstructionLayersToTop();
 	}
 
@@ -909,6 +941,7 @@
 		if ($selectedLocation?.id === 'weesp-castle') {
 			ensureSiteReconstructionLayers($selectedLocation);
 			setSiteReconstructionVisibility(siteModelVisible);
+			setSiteReconstructionOpacity(siteModelOpacity);
 			moveSiteReconstructionLayersToTop();
 		} else {
 			removeSiteReconstructionLayers();
@@ -979,25 +1012,6 @@
 		<button class="reset-button" type="button" onclick={handleResetView}>Reset view</button>
 	</header>
 
-	<nav class="mission-rail absolute bottom-4 left-4 top-20 z-40" aria-label="Workspace modules">
-		<div class="rail-item active" title="Map workspace">
-			<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 18 3 21V6l6-3 6 3 6-3v15l-6 3-6-3Zm0-2.8v-10m6 12.6V7.8" /></svg>
-		</div>
-		<div class="rail-item" title="Layer stack">
-			<svg viewBox="0 0 24 24" aria-hidden="true"><path d="m12 3 9 5-9 5-9-5 9-5Zm-7 9 7 4 7-4M5 16l7 4 7-4" /></svg>
-		</div>
-		<div class="rail-item" title="Signals">
-			<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 17h3l3-10 4 14 3-8h3" /></svg>
-		</div>
-		<div class="rail-item" title="Annotations">
-			<svg viewBox="0 0 24 24" aria-hidden="true"><path d="m4 20 4.5-1 10-10a2.1 2.1 0 0 0-3-3l-10 10L4 20Z" /></svg>
-		</div>
-		<div class="rail-spacer"></div>
-		<div class="rail-item muted" title="Demo mode">
-			<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3v4m0 10v4M3 12h4m10 0h4M5.6 5.6l2.8 2.8m7.2 7.2 2.8 2.8m0-12.8-2.8 2.8m-7.2 7.2-2.8 2.8" /></svg>
-		</div>
-	</nav>
-
 	<HeroDrone visible={!disableFloatingDrone && navigationDroneVisible} mode={navigationDroneMode} zIndex={8} />
 	<div
 		class:navigation-active={!disableFloatingDrone && navigationDroneMode === 'transit'}
@@ -1063,7 +1077,12 @@
 		}}
 	/>
 
-	<LocationAnalyticsPanel {siteModelVisible} on:sitemodeltoggle={handleSiteModelToggle} />
+	<LocationAnalyticsPanel
+		{siteModelVisible}
+		{siteModelOpacity}
+		on:sitemodeltoggle={handleSiteModelToggle}
+		on:sitemodelopacity={handleSiteModelOpacity}
+	/>
 
 	{#if weespAnalysisPopupVisible}
 		<div class="weesp-analysis-popup pointer-events-none absolute z-[80]">
@@ -1335,55 +1354,6 @@
 		}
 	}
 
-	.mission-rail {
-		display: flex;
-		width: 44px;
-		flex-direction: column;
-		align-items: center;
-		gap: 8px;
-		padding: 8px 0;
-		border: 1px solid rgba(167, 213, 255, 0.12);
-		border-radius: 18px;
-		background: rgba(7, 11, 18, 0.76);
-		box-shadow: 0 20px 60px rgba(0, 0, 0, 0.34), inset 0 1px 0 rgba(255, 255, 255, 0.06);
-		backdrop-filter: blur(18px);
-	}
-
-	.rail-item {
-		display: grid;
-		place-items: center;
-		width: 32px;
-		height: 32px;
-		border: 1px solid transparent;
-		border-radius: 11px;
-		color: rgba(232, 241, 255, 0.56);
-	}
-
-	.rail-item.active {
-		border-color: rgba(97, 216, 255, 0.28);
-		background: rgba(97, 216, 255, 0.1);
-		color: #aeeeff;
-		box-shadow: 0 0 22px rgba(97, 216, 255, 0.14);
-	}
-
-	.rail-item.muted {
-		color: rgba(255, 155, 84, 0.62);
-	}
-
-	.rail-item svg {
-		width: 17px;
-		height: 17px;
-		fill: none;
-		stroke: currentColor;
-		stroke-width: 2;
-		stroke-linecap: round;
-		stroke-linejoin: round;
-	}
-
-	.rail-spacer {
-		flex: 1;
-	}
-
 	.annotation-toolbar.panelOpen {
 		right: 392px;
 	}
@@ -1510,13 +1480,6 @@
 
 		.reset-button {
 			display: none;
-		}
-
-		.mission-rail {
-			bottom: auto;
-			left: auto;
-			right: 12px;
-			top: 132px;
 		}
 
 		.annotation-toolbar,
