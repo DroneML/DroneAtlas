@@ -638,8 +638,8 @@
 				box('south-hall', 0.445, 0.575, 0.625, 0.685, 5, '#bd246f'),
 				box('gate-wing', 0.365, 0.675, 0.46, 0.735, 4, '#bd246f'),
 				box('east-wall', 0.695, 0.465, 0.745, 0.615, 5, '#d33487'),
-				rectLine('outer-moat', 'moat', 0.3, 0.23, 0.82, 0.8),
-				rectLine('inner-moat', 'moat', 0.39, 0.285, 0.765, 0.725),
+				rectLine('outer-moat', 'moat', 0.32, 0.2, 0.8, 0.73),
+				rectLine('inner-moat', 'moat', 0.405, 0.27, 0.735, 0.655),
 				rectLine('tower-outline', 'wall-outline', 0.405, 0.455, 0.485, 0.535),
 				rectLine('keep-outline', 'wall-outline', 0.545, 0.405, 0.63, 0.49),
 				rectLine('hall-outline', 'wall-outline', 0.445, 0.575, 0.625, 0.685)

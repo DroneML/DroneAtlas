@@ -425,8 +425,8 @@ function createGeneratedProjectRaster(layerDef: ProjectLayerDef):
 
 function anomalyProbability(u: number, v: number, x: number, y: number): number {
 	const [siteU, siteV] = weespImageUvToSiteUv(u, v);
-	const outerWall = rectTrace(siteU, siteV, 0.3, 0.23, 0.82, 0.8, 0.012) * 82;
-	const innerWall = rectTrace(siteU, siteV, 0.39, 0.285, 0.765, 0.725, 0.014) * 94;
+	const outerWall = rectTrace(siteU, siteV, 0.32, 0.2, 0.8, 0.73, 0.012) * 82;
+	const innerWall = rectTrace(siteU, siteV, 0.405, 0.27, 0.735, 0.655, 0.014) * 94;
 	const keep = rectTrace(siteU, siteV, 0.545, 0.405, 0.63, 0.49, 0.013) * 88;
 	const tower = rectTrace(siteU, siteV, 0.405, 0.455, 0.485, 0.535, 0.014) * 78;
 	const hall = rectTrace(siteU, siteV, 0.445, 0.575, 0.625, 0.685, 0.012) * 72;
