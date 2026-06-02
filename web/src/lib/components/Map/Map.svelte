@@ -11,17 +11,25 @@
 		rasterLayers,
 		updateAllRasterLayersOpacity
 	} from './store';
-	import { parseUrlFilters, serializeFiltersToUrl, debounce } from './utils/urlParams';
-	import { isClickOnVisibleRaster } from './utils/rasterClickUtils';
+	import { serializeFiltersToUrl, debounce } from './utils/urlParams';
 	import { preloadData } from './utils/MapInitializer';
 	import {
 		getRasterValueAtCoordinate,
 		getRasterValueAtCoordinateFast,
-		findVisibleRasterLayerAtCoordinate,
-		isLatitudeInWebMercatorRange
+		findVisibleRasterLayerAtCoordinate
 	} from './utils/rasterPixelQuery';
-	import { WEB_MERCATOR_MAX_LATITUDE } from './utils/geoTiffProcessor';
-	import { loadAndProcessGeoTIFF } from './utils/geoTiffProcessor';
+	import type { AnnotationCoordinate, AnnotationFeature } from './utils/annotationLayers';
+	import {
+		ensureAnnotationLayers as ensureMapAnnotationLayers,
+		syncAnnotationLayers as syncMapAnnotationLayers
+	} from './utils/annotationLayers';
+	import {
+		ensureSiteReconstructionLayers,
+		moveSiteReconstructionLayersToTop,
+		removeSiteReconstructionLayers,
+		setSiteReconstructionOpacity,
+		setSiteReconstructionVisibility
+	} from './utils/siteReconstruction';
 
 	// Import modularized components
 	import MapCore from './components/MapCore.svelte';
@@ -30,6 +38,10 @@
 	import RasterLegend from './components/RasterLegend.svelte';
 	import LocationsSidebar from './components/LocationsSidebar.svelte';
 	import LocationAnalyticsPanel from './components/LocationAnalyticsPanel.svelte';
+	import MissionTopbar from './components/MissionTopbar.svelte';
+	import AnnotationToolbar from './components/AnnotationToolbar.svelte';
+	import RasterHoverTooltip from './components/RasterHoverTooltip.svelte';
+	import WeespAnalysisPopup from './components/WeespAnalysisPopup.svelte';
 	import HeroDrone from '$lib/demo/components/HeroDrone.svelte';
 	import {
 		projectLocations,
@@ -38,21 +50,13 @@
 		toggleProjectLayer,
 		updateProjectLayerOpacity
 	} from '$lib/stores/projects.store';
-	import { WEESP_IMAGE_BOUNDS, weespSiteUvToImageUv } from '$lib/demo/weesp';
 	import { get } from 'svelte/store';
-	import type { ProjectLocation, RasterLayer } from '$lib/types';
+	import type { ProjectLocation } from '$lib/types';
 
 	// Props that can be passed to the component
 	export let initialCenter: [number, number] = [-25, 16]; // Default center coordinates [lng, lat]
 	export let initialZoom: number = 2; // Default zoom level
 	export let initialStyleId: string | null = null; // Optional style ID to use
-
-	type AnnotationCoordinate = [number, number];
-	type AnnotationFeature = {
-		type: 'Feature';
-		properties: { id: string; active?: boolean };
-		geometry: { type: 'LineString'; coordinates: AnnotationCoordinate[] };
-	};
 
 	// Track the global opacity value for raster layers
 	let globalOpacity = 80; // Default to 80%
@@ -71,13 +75,6 @@
 	let siteModelOpacity = 100;
 	let weespAnalysisPopupVisible = false;
 	let weespDemoTimers: ReturnType<typeof setTimeout>[] = [];
-	const siteReconstructionSourceId = 'weesp-site-reconstruction';
-	const siteReconstructionLayerIds = [
-		'weesp-site-moat-glow',
-		'weesp-site-moat-line',
-		'weesp-site-buildings',
-		'weesp-site-wall-outlines'
-	];
 	const weespLayerOpacity: Record<string, number> = {
 		'weesp-lidar': 0.56,
 		'weesp-multispectral': 0.38,
@@ -87,26 +84,10 @@
 	const weespRevealLayerIds = ['weesp-lidar', 'weesp-multispectral', 'weesp-thermal'];
 	const lockCameraAtWeespDemoEnd = false;
 	let hasInitializedWeespFinalState = false;
-	const siteReconstructionBaseOpacity: Record<string, number> = {
-		'weesp-site-moat-glow': 0.42,
-		'weesp-site-moat-line': 0.95,
-		'weesp-site-buildings': 1,
-		'weesp-site-wall-outlines': 1
-	};
 	let annotationDrawingEnabled = false;
 	let annotationIsDrawing = false;
 	let annotationFeatures: AnnotationFeature[] = [];
 	let activeAnnotation: AnnotationCoordinate[] = [];
-	const annotationsSourceId = 'annotation-drawings';
-	const annotationsHaloLayerId = 'annotation-drawings-halo';
-	const annotationsLayerId = 'annotation-drawings-line';
-
-	// Simple cache for SE rasters to compute CIs without reloading each click
-	const seRasterCache = new Map<
-		string,
-		{ bounds: number[]; rasterData: Float32Array; width: number; height: number }
-	>();
-
 	// References to child components
 	let rasterLayerManager: RasterLayerManager;
 
@@ -189,15 +170,6 @@
 			debugInfo.hoverRasterValue = null;
 			debugInfo.hoverRasterName = null;
 		}
-	}
-
-	function isProbabilityLayerName(name: string | null): boolean {
-		return Boolean(name?.toLowerCase().includes('probability'));
-	}
-
-	function formatHoverRasterValue(value: number, name: string | null): string {
-		if (isProbabilityLayerName(name)) return `${Math.round(value)}%`;
-		return String(value);
 	}
 
 	// Slower update for debug panel details
@@ -424,8 +396,8 @@
 		const settleDelay = target === 'overview' ? 250 : 350;
 		const finishFlight = () => {
 			if (run !== navigationFlightRun) return;
-			navigationDroneMode = 'idle';
 			navigationDroneVisible = target === 'overview';
+			if (target === 'overview') navigationDroneMode = 'idle';
 			navigationDroneTimer = null;
 		};
 
@@ -496,13 +468,13 @@
 		});
 
 		weespRevealLayerIds.forEach((layerId, index) => {
-			scheduleWeespDemoStep(1400 + index * 1050, () => setWeespLayerVisible(location, layerId, true));
+			scheduleWeespDemoStep(duration + 900 + index * 1050, () => setWeespLayerVisible(location, layerId, true));
 		});
 
-		scheduleWeespDemoStep(duration + 550, () => {
+		scheduleWeespDemoStep(duration + 600, () => {
 			weespAnalysisPopupVisible = true;
 		});
-		scheduleWeespDemoStep(duration + 3550, () => {
+		scheduleWeespDemoStep(duration + 4450, () => {
 			weespAnalysisPopupVisible = false;
 			setWeespLayerVisible(location, 'weesp-probability', true);
 			siteModelVisible = true;
@@ -537,10 +509,10 @@
 	}
 
 	function applySiteReconstructionState(location: ProjectLocation) {
-		ensureSiteReconstructionLayers(location);
-		setSiteReconstructionVisibility(true);
-		setSiteReconstructionOpacity(siteModelOpacity);
-		moveSiteReconstructionLayersToTop();
+		ensureSiteReconstructionLayers(map, isStyleLoaded, location, siteModelVisible, siteModelOpacity);
+		setSiteReconstructionVisibility(map, true);
+		setSiteReconstructionOpacity(map, siteModelOpacity);
+		moveSiteReconstructionLayersToTop(map);
 	}
 
 	function handleResetView() {
@@ -574,313 +546,20 @@
 		clearWeespDemoTimers();
 	}
 
-	function ensureSiteReconstructionLayers(location: ProjectLocation) {
-		if (!map || !isStyleLoaded) return;
-
-		const data = buildSiteReconstructionData(location.center);
-		const existingSource = map.getSource(siteReconstructionSourceId) as
-			| { setData?: (data: any) => void }
-			| undefined;
-
-		if (existingSource?.setData) {
-			existingSource.setData(data);
-		} else if (!existingSource) {
-			map.addSource(siteReconstructionSourceId, {
-				type: 'geojson',
-				data: data as any
-			});
-		}
-
-		if (!map.getLayer('weesp-site-moat-glow')) {
-			map.addLayer({
-				id: 'weesp-site-moat-glow',
-				type: 'line',
-				source: siteReconstructionSourceId,
-				filter: ['==', ['get', 'class'], 'moat'],
-				paint: {
-					'line-color': '#39d2ff',
-					'line-width': 6,
-					'line-blur': 5,
-					'line-opacity': 0.42
-				}
-			} as any);
-		}
-
-		if (!map.getLayer('weesp-site-moat-line')) {
-			map.addLayer({
-				id: 'weesp-site-moat-line',
-				type: 'line',
-				source: siteReconstructionSourceId,
-				filter: ['==', ['get', 'class'], 'moat'],
-				paint: {
-					'line-color': '#39d2ff',
-					'line-width': 2,
-					'line-opacity': 0.95
-				}
-			} as any);
-		}
-
-		if (!map.getLayer('weesp-site-buildings')) {
-			map.addLayer({
-				id: 'weesp-site-buildings',
-				type: 'fill-extrusion',
-				source: siteReconstructionSourceId,
-				filter: ['==', ['geometry-type'], 'Polygon'],
-				paint: {
-					'fill-extrusion-color': ['get', 'color'],
-					'fill-extrusion-height': ['get', 'height'],
-					'fill-extrusion-base': ['get', 'base'],
-					'fill-extrusion-opacity': 1,
-				'fill-extrusion-vertical-gradient': false
-				}
-			} as any);
-		}
-
-		if (!map.getLayer('weesp-site-wall-outlines')) {
-			map.addLayer({
-				id: 'weesp-site-wall-outlines',
-				type: 'line',
-				source: siteReconstructionSourceId,
-				filter: ['==', ['get', 'class'], 'wall-outline'],
-				paint: {
-					'line-color': '#ff2da8',
-					'line-width': 2.2,
-					'line-opacity': 1
-				}
-			} as any);
-		}
-
-		setSiteReconstructionVisibility(siteModelVisible);
-		setSiteReconstructionOpacity(siteModelOpacity);
-		moveSiteReconstructionLayersToTop();
-	}
-
-	function setSiteReconstructionVisibility(visible: boolean) {
-		if (!map) return;
-		const visibility = visible ? 'visible' : 'none';
-		for (const layerId of siteReconstructionLayerIds) {
-			if (map.getLayer(layerId)) map.setLayoutProperty(layerId, 'visibility', visibility);
-		}
-	}
-
-	function setSiteReconstructionOpacity(opacityPercent: number) {
-		if (!map) return;
-		const opacity = Math.max(0, Math.min(1, opacityPercent / 100));
-		for (const layerId of siteReconstructionLayerIds) {
-			if (!map.getLayer(layerId)) continue;
-			const value = (siteReconstructionBaseOpacity[layerId] ?? 1) * opacity;
-			if (layerId === 'weesp-site-buildings') {
-				map.setPaintProperty(layerId, 'fill-extrusion-opacity', value);
-			} else {
-				map.setPaintProperty(layerId, 'line-opacity', value);
-			}
-		}
-	}
-
-	function removeSiteReconstructionLayers() {
-		if (!map) return;
-		for (const layerId of [...siteReconstructionLayerIds].reverse()) {
-			if (map.getLayer(layerId)) map.removeLayer(layerId);
-		}
-		if (map.getSource(siteReconstructionSourceId)) map.removeSource(siteReconstructionSourceId);
-	}
-
-	function moveSiteReconstructionLayersToTop() {
-		if (!map) return;
-		for (const layerId of siteReconstructionLayerIds) {
-			if (map.getLayer(layerId)) map.moveLayer(layerId);
-		}
-	}
-
 	function handleSiteModelToggle(event: CustomEvent<{ visible: boolean }>) {
 		siteModelVisible = event.detail.visible;
-		setSiteReconstructionVisibility(siteModelVisible);
-		moveSiteReconstructionLayersToTop();
+		setSiteReconstructionVisibility(map, siteModelVisible);
+		moveSiteReconstructionLayersToTop(map);
 	}
 
 	function handleSiteModelOpacity(event: CustomEvent<{ opacity: number }>) {
 		siteModelOpacity = Math.max(0, Math.min(100, event.detail.opacity));
 		if (!siteModelVisible) {
 			siteModelVisible = true;
-			setSiteReconstructionVisibility(true);
+			setSiteReconstructionVisibility(map, true);
 		}
-		setSiteReconstructionOpacity(siteModelOpacity);
-		moveSiteReconstructionLayersToTop();
-	}
-
-	function buildSiteReconstructionData(_center: [number, number]) {
-		const uvToLngLat = (u: number, v: number): [number, number] => {
-			const [imageU, imageV] = weespSiteUvToImageUv(u, v);
-			const [west, south, east, north] = WEESP_IMAGE_BOUNDS;
-			return [west + imageU * (east - west), north - imageV * (north - south)];
-		};
-		const rectPoints = (left: number, top: number, right: number, bottom: number) => [
-			[left, top],
-			[right, top],
-			[right, bottom],
-			[left, bottom]
-		] as Array<[number, number]>;
-		const closeRing = (points: Array<[number, number]>) =>
-			[...points, points[0]].map(([u, v]) => uvToLngLat(u, v));
-
-		const polygon = (
-			id: string,
-			points: Array<[number, number]>,
-			height: number,
-			color = '#ff2da8',
-			base = 1
-		) => ({
-			type: 'Feature',
-			properties: { id, height, base, color },
-			geometry: {
-				type: 'Polygon',
-				coordinates: [closeRing(points)]
-			}
-		});
-		const ring = (
-			id: string,
-			outer: [number, number, number, number],
-			inner: [number, number, number, number],
-			height: number,
-			color = '#d98528',
-			base = 0.6
-		) => ({
-			type: 'Feature',
-			properties: { id, height, base, color },
-			geometry: {
-				type: 'Polygon',
-				coordinates: [
-					closeRing(rectPoints(...outer)),
-					closeRing([...rectPoints(...inner)].reverse())
-				]
-			}
-		});
-
-		const box = (
-			id: string,
-			left: number,
-			top: number,
-			right: number,
-			bottom: number,
-			height: number,
-			color?: string
-		) =>
-			polygon(id, rectPoints(left, top, right, bottom), height, color);
-
-		const rectLine = (
-			id: string,
-			className: string,
-			left: number,
-			top: number,
-			right: number,
-			bottom: number
-		) =>
-			line(id, className, [
-				[left, top],
-				[right, top],
-				[right, bottom],
-				[left, bottom]
-			]);
-
-		const line = (id: string, className: string, points: Array<[number, number]>, close = true) => ({
-			type: 'Feature',
-			properties: { id, class: className },
-			geometry: {
-				type: 'LineString',
-				coordinates: (close ? [...points, points[0]] : points).map(([u, v]) => uvToLngLat(u, v))
-			}
-		});
-
-		return {
-			type: 'FeatureCollection',
-			// bottom, top, right, left in UV coords and he
-			features: [
-				ring('outer-wall-trace', [0.315, 0.2, 0.795, 0.73], [0.345, 0.235, 0.765, 0.695], 1.5),
-				ring('inner-wall-trace', [0.405, 0.265, 0.735, 0.63], [0.435, 0.3, 0.705, 0.595], 2.2),
-				ring('central-tower-trace', [0.54, 0.41, 0.625, 0.515], [0.57, 0.445, 0.595, 0.48], 8.8, '#ff2da8'),
-				box('west-annex-trace', 0.425, 0.465, 0.485, 0.53, 3.6, '#cc2cff'),
-				box('south-hall-trace', 0.405, 0.575, 0.63, 0.68, 1.8, '#bd246f'),
-				box('south-gate-hotspot', 0.33, 0.705, 0.39, 0.775, 1.2, '#b77b23'),
-				rectLine('outer-moat', 'moat', 0.25, 0.125, 0.86, 0.805),
-				rectLine('inner-moat', 'moat', 0.395, 0.255, 0.745, 0.64),
-				rectLine('outer-wall-outline', 'wall-outline', 0.315, 0.2, 0.795, 0.73),
-				rectLine('inner-wall-outline', 'wall-outline', 0.405, 0.265, 0.735, 0.63),
-				rectLine('tower-outline', 'wall-outline', 0.54, 0.41, 0.625, 0.515),
-				rectLine('west-annex-outline', 'wall-outline', 0.425, 0.465, 0.485, 0.53),
-				rectLine('hall-outline', 'wall-outline', 0.405, 0.575, 0.63, 0.68)
-			]
-		};
-	}
-
-	function getAnnotationCollection() {
-		const features = [...annotationFeatures];
-		if (activeAnnotation.length > 1) {
-			features.push({
-				type: 'Feature',
-				properties: { id: 'active', active: true },
-				geometry: { type: 'LineString', coordinates: activeAnnotation }
-			});
-		}
-
-		return {
-			type: 'FeatureCollection',
-			features
-		};
-	}
-
-	function ensureAnnotationLayers() {
-		if (!map || !isStyleLoaded) return;
-
-		if (!map.getSource(annotationsSourceId)) {
-			map.addSource(annotationsSourceId, {
-				type: 'geojson',
-				data: getAnnotationCollection() as any
-			});
-		}
-
-		if (!map.getLayer(annotationsHaloLayerId)) {
-			map.addLayer({
-				id: annotationsHaloLayerId,
-				type: 'line',
-				source: annotationsSourceId,
-				paint: {
-					'line-color': '#06131f',
-					'line-width': ['case', ['boolean', ['get', 'active'], false], 8, 7],
-					'line-opacity': 0.55,
-					'line-blur': 2
-				}
-			} as any);
-		}
-
-		if (!map.getLayer(annotationsLayerId)) {
-			map.addLayer({
-				id: annotationsLayerId,
-				type: 'line',
-				source: annotationsSourceId,
-				paint: {
-					'line-color': ['case', ['boolean', ['get', 'active'], false], '#ffb84d', '#39d2ff'],
-					'line-width': ['case', ['boolean', ['get', 'active'], false], 4, 3],
-					'line-opacity': 0.95
-				}
-			} as any);
-		}
-
-		moveAnnotationLayersToTop();
-	}
-
-	function syncAnnotationLayers() {
-		if (!map || !isStyleLoaded) return;
-		ensureAnnotationLayers();
-		const source = map.getSource(annotationsSourceId) as { setData?: (data: any) => void } | undefined;
-		source?.setData?.(getAnnotationCollection());
-		moveAnnotationLayersToTop();
-	}
-
-	function moveAnnotationLayersToTop() {
-		if (!map) return;
-		for (const layerId of [annotationsHaloLayerId, annotationsLayerId]) {
-			if (map.getLayer(layerId)) map.moveLayer(layerId);
-		}
+		setSiteReconstructionOpacity(map, siteModelOpacity);
+		moveSiteReconstructionLayersToTop(map);
 	}
 
 	function setAnnotationDrawingEnabled(enabled: boolean) {
@@ -891,7 +570,7 @@
 		if (enabled) {
 			map.dragPan.disable();
 			map.getCanvas().style.cursor = 'crosshair';
-			ensureAnnotationLayers();
+			ensureMapAnnotationLayers(map, isStyleLoaded, annotationFeatures, activeAnnotation);
 		} else {
 			finishActiveAnnotation();
 			map.dragPan.enable();
@@ -906,7 +585,7 @@
 		showPopover = false;
 		annotationIsDrawing = true;
 		activeAnnotation = [[event.lngLat.lng, event.lngLat.lat]];
-		syncAnnotationLayers();
+		syncMapAnnotationLayers(map, isStyleLoaded, annotationFeatures, activeAnnotation);
 	}
 
 	function handleAnnotationMouseMove(event: maplibregl.MapMouseEvent) {
@@ -924,7 +603,7 @@
 		const last = activeAnnotation[activeAnnotation.length - 1];
 		if (last && Math.hypot(point[0] - last[0], point[1] - last[1]) < 0.000003) return;
 		activeAnnotation = [...activeAnnotation, point];
-		syncAnnotationLayers();
+		syncMapAnnotationLayers(map, isStyleLoaded, annotationFeatures, activeAnnotation);
 	}
 
 	function finishActiveAnnotation() {
@@ -941,7 +620,7 @@
 		}
 		annotationIsDrawing = false;
 		activeAnnotation = [];
-		syncAnnotationLayers();
+		syncMapAnnotationLayers(map, isStyleLoaded, annotationFeatures, activeAnnotation);
 	}
 
 	function undoAnnotation() {
@@ -951,14 +630,14 @@
 		} else {
 			annotationFeatures = annotationFeatures.slice(0, -1);
 		}
-		syncAnnotationLayers();
+		syncMapAnnotationLayers(map, isStyleLoaded, annotationFeatures, activeAnnotation);
 	}
 
 	function clearAnnotations() {
 		annotationIsDrawing = false;
 		activeAnnotation = [];
 		annotationFeatures = [];
-		syncAnnotationLayers();
+		syncMapAnnotationLayers(map, isStyleLoaded, annotationFeatures, activeAnnotation);
 	}
 
 	onMount(async () => {
@@ -990,7 +669,7 @@
 	onDestroy(() => {
 		if (navigationDroneTimer) clearTimeout(navigationDroneTimer);
 		clearWeespDemoTimers();
-		removeSiteReconstructionLayers();
+		removeSiteReconstructionLayers(map);
 
 		if ((window as any).__mapComponent) {
 			delete (window as any).__mapComponent;
@@ -1022,17 +701,17 @@
 	$: if (map && isStyleLoaded) {
 		annotationFeatures;
 		activeAnnotation;
-		syncAnnotationLayers();
+		syncMapAnnotationLayers(map, isStyleLoaded, annotationFeatures, activeAnnotation);
 	}
 
 	$: if (map && isStyleLoaded) {
 		if ($selectedLocation?.id === 'weesp-castle') {
-			ensureSiteReconstructionLayers($selectedLocation);
-			setSiteReconstructionVisibility(siteModelVisible);
-			setSiteReconstructionOpacity(siteModelOpacity);
-			moveSiteReconstructionLayersToTop();
+			ensureSiteReconstructionLayers(map, isStyleLoaded, $selectedLocation, siteModelVisible, siteModelOpacity);
+			setSiteReconstructionVisibility(map, siteModelVisible);
+			setSiteReconstructionOpacity(map, siteModelOpacity);
+			moveSiteReconstructionLayersToTop(map);
 		} else {
-			removeSiteReconstructionLayers();
+			removeSiteReconstructionLayers(map);
 		}
 	}
 
@@ -1046,7 +725,7 @@
 		) {
 			map.once('idle', () => {
 				rasterLayerManager.ensureCorrectLayerOrder();
-				moveSiteReconstructionLayersToTop();
+				moveSiteReconstructionLayersToTop(map);
 			});
 		}
 	}
@@ -1061,7 +740,7 @@
 		) {
 			map.once('idle', () => {
 				rasterLayerManager.ensureCorrectLayerOrder();
-				moveSiteReconstructionLayersToTop();
+				moveSiteReconstructionLayersToTop(map);
 			});
 		}
 	}
@@ -1080,25 +759,11 @@
 
 	<div class="map-atmosphere pointer-events-none absolute inset-0 z-[5]"></div>
 
-	<header class="mission-topbar absolute left-0 right-0 top-0 z-50">
-		<div class="brand-lockup">
-			<div class="brand-mark"><span></span></div>
-			<div>
-				<div class="brand-name">Drone<span>ATLAS</span></div>
-				<div class="brand-subtitle">Spatial intelligence workspace</div>
-			</div>
-		</div>
-
-		<div class="mission-status">
-			<div class="status-chip live"><span></span> live raster analysis</div>
-			<div class="status-chip">{visibleLayerCount} active layers</div>
-			<div class="status-chip location-chip">
-				{$selectedLocation ? $selectedLocation.name : 'Netherlands overview'}
-			</div>
-		</div>
-
-		<button class="reset-button" type="button" onclick={handleResetView}>Reset view</button>
-	</header>
+	<MissionTopbar
+		{visibleLayerCount}
+		selectedLocationName={$selectedLocation ? $selectedLocation.name : 'Netherlands overview'}
+		onResetView={handleResetView}
+	/>
 
 	<HeroDrone visible={!disableFloatingDrone && navigationDroneVisible} mode={navigationDroneMode} zIndex={8} />
 	<div
@@ -1111,40 +776,14 @@
 	{/if}
 
 	{#if map}
-		<div
-			class="annotation-toolbar absolute bottom-6 right-4 z-50 flex flex-col items-end gap-2"
-			class:panelOpen={Boolean($selectedLocation)}
-		>
-			<div class="annotation-actions flex items-center gap-1 rounded-lg p-1 shadow-lg backdrop-blur-md">
-				<button
-					class="btn btn-sm"
-					class:btn-primary={annotationDrawingEnabled}
-					class:btn-ghost={!annotationDrawingEnabled}
-					onclick={() => setAnnotationDrawingEnabled(!annotationDrawingEnabled)}
-				>
-					{annotationDrawingEnabled ? 'Drawing on' : 'Draw'}
-				</button>
-				<button
-					class="btn btn-ghost btn-sm"
-					disabled={annotationFeatures.length === 0 && !annotationIsDrawing}
-					onclick={undoAnnotation}
-				>
-					Undo
-				</button>
-				<button
-					class="btn btn-ghost btn-sm"
-					disabled={annotationFeatures.length === 0 && !annotationIsDrawing}
-					onclick={clearAnnotations}
-				>
-					Clear
-				</button>
-			</div>
-			{#if annotationDrawingEnabled}
-				<div class="annotation-help max-w-64 rounded-lg px-3 py-2 text-xs shadow-lg backdrop-blur-md">
-					Drag on the map to sketch an annotation. Drawing mode disables map panning until turned off.
-				</div>
-			{/if}
-		</div>
+		<AnnotationToolbar
+			panelOpen={Boolean($selectedLocation)}
+			{annotationDrawingEnabled}
+			canUndoOrClear={annotationFeatures.length > 0 || annotationIsDrawing}
+			onToggleDrawing={() => setAnnotationDrawingEnabled(!annotationDrawingEnabled)}
+			onUndo={undoAnnotation}
+			onClear={clearAnnotations}
+		/>
 	{/if}
 
 	{#if map && isStyleLoaded}
@@ -1173,36 +812,20 @@
 	/>
 
 	{#if weespAnalysisPopupVisible}
-		<div class="weesp-analysis-popup pointer-events-none absolute z-[80]">
-			<div class="scan-ring"></div>
-			<div>
-				<div class="analysis-title">Analysing tree...</div>
-				<div class="analysis-subtitle">Fusing LiDAR, NDVI, thermal, and probability evidence</div>
-			</div>
-			<div class="analysis-bars" aria-hidden="true"><span></span><span></span><span></span></div>
-		</div>
+		<WeespAnalysisPopup />
 	{/if}
 
 	{#if map && isStyleLoaded}
 		<RasterLegend visible={true} />
 	{/if}
 
-	<!-- Hover Tooltip - follows mouse cursor -->
-	{#if debugInfo.hoverInRaster && debugInfo.hoverRasterValue !== null && debugInfo.hoverMousePos && !showPopover}
-		<div
-			class="raster-cursor-dot pointer-events-none fixed z-[999] h-2 w-2"
-			style="left: {debugInfo.hoverMousePos.x}px; top: {debugInfo.hoverMousePos
-				.y}px; transform: translate(-50%, -50%);"
-		></div>
-		<div
-			class="raster-tooltip pointer-events-none fixed z-[1000] whitespace-nowrap px-2 py-1 text-xs"
-			style="left: {debugInfo.hoverMousePos.x}px; top: {debugInfo.hoverMousePos
-				.y}px; transform: translate(10px, -115%);"
-		>
-			{isProbabilityLayerName(debugInfo.hoverRasterName) ? 'Prediction' : 'Value'}:
-			{formatHoverRasterValue(debugInfo.hoverRasterValue, debugInfo.hoverRasterName)}
-		</div>
-	{/if}
+	<RasterHoverTooltip
+		hoverInRaster={debugInfo.hoverInRaster}
+		hoverRasterValue={debugInfo.hoverRasterValue}
+		hoverRasterName={debugInfo.hoverRasterName}
+		hoverMousePos={debugInfo.hoverMousePos}
+		{showPopover}
+	/>
 
 	{#if $isLoading}
 		<div class="mission-loading fixed bottom-6 left-24 z-[1000] w-auto shadow-lg">
@@ -1230,258 +853,11 @@
 		mix-blend-mode: screen;
 	}
 
-	.mission-topbar {
-		display: grid;
-		grid-template-columns: auto minmax(0, 1fr) auto;
-		align-items: center;
-		gap: 18px;
-		min-height: 68px;
-		padding: 12px 16px;
-		border-bottom: 1px solid rgba(167, 213, 255, 0.12);
-		background:
-			linear-gradient(180deg, rgba(6, 10, 17, 0.9), rgba(6, 10, 17, 0.56)),
-			radial-gradient(circle at 18% 0%, rgba(97, 216, 255, 0.12), transparent 36%);
-		box-shadow: 0 18px 52px rgba(0, 0, 0, 0.38);
-		backdrop-filter: blur(18px) saturate(140%);
-	}
-
-	.brand-lockup {
-		display: flex;
-		align-items: center;
-		gap: 10px;
-		min-width: 218px;
-	}
-
-	.brand-mark {
-		display: grid;
-		place-items: center;
-		width: 36px;
-		height: 36px;
-		border: 1px solid rgba(97, 216, 255, 0.34);
-		border-radius: 12px;
-		background: rgba(97, 216, 255, 0.08);
-		box-shadow: 0 0 28px rgba(97, 216, 255, 0.18), inset 0 0 18px rgba(97, 216, 255, 0.1);
-	}
-
-	.brand-mark span {
-		width: 14px;
-		height: 14px;
-		border: 2px solid #9de9ff;
-		border-radius: 50%;
-		box-shadow: 0 0 16px #61d8ff;
-	}
-
-	.brand-name {
-		font-size: 14px;
-		font-weight: 650;
-		letter-spacing: 0.02em;
-		line-height: 1;
-	}
-
-	.brand-name span {
-		font-weight: 900;
-		color: #b9f1ff;
-	}
-
-	.brand-subtitle {
-		margin-top: 4px;
-		font-size: 10px;
-		font-weight: 700;
-		letter-spacing: 0.16em;
-		text-transform: uppercase;
-		color: rgba(232, 241, 255, 0.44);
-	}
-
-	.mission-status {
-		display: flex;
-		min-width: 0;
-		align-items: center;
-		justify-content: center;
-		gap: 8px;
-	}
-
-	.status-chip,
-	.reset-button,
-	.mission-loading,
-	.raster-tooltip {
+	.mission-loading {
 		border: 1px solid rgba(167, 213, 255, 0.14);
 		background: rgba(8, 13, 21, 0.72);
 		box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.07), 0 14px 30px rgba(0, 0, 0, 0.28);
 		backdrop-filter: blur(14px);
-	}
-
-	.status-chip {
-		display: inline-flex;
-		align-items: center;
-		gap: 7px;
-		min-width: 0;
-		max-width: 290px;
-		overflow: hidden;
-		padding: 7px 10px;
-		border-radius: 999px;
-		font-size: 10px;
-		font-weight: 850;
-		letter-spacing: 0.12em;
-		text-overflow: ellipsis;
-		text-transform: uppercase;
-		white-space: nowrap;
-		color: rgba(232, 241, 255, 0.72);
-	}
-
-	.status-chip.live {
-		border-color: rgba(103, 233, 133, 0.2);
-		color: rgba(204, 255, 216, 0.82);
-	}
-
-	.status-chip.live span {
-		width: 7px;
-		height: 7px;
-		border-radius: 50%;
-		background: #67e985;
-		box-shadow: 0 0 14px #67e985;
-	}
-
-	.reset-button {
-		padding: 9px 13px;
-		border-radius: 12px;
-		font-size: 11px;
-		font-weight: 850;
-		letter-spacing: 0.12em;
-		text-transform: uppercase;
-		color: rgba(232, 241, 255, 0.8);
-		transition: transform 0.18s ease, border-color 0.18s ease, background 0.18s ease;
-	}
-
-	.reset-button:hover {
-		transform: translateY(-1px);
-		border-color: rgba(97, 216, 255, 0.4);
-		background: rgba(97, 216, 255, 0.1);
-	}
-
-	.weesp-analysis-popup {
-		left: 50%;
-		top: 50%;
-		transform: translate(-50%, -50%);
-		display: grid;
-		grid-template-columns: auto 1fr auto;
-		align-items: center;
-		gap: 18px;
-		min-width: min(560px, 72vw);
-		padding: 24px 28px;
-		border: 1px solid rgba(97, 216, 255, 0.38);
-		border-radius: 28px;
-		background: linear-gradient(135deg, rgba(7, 12, 22, 0.94), rgba(16, 25, 38, 0.8));
-		box-shadow: 0 26px 80px rgba(0, 0, 0, 0.52), 0 0 42px rgba(97, 216, 255, 0.2);
-		backdrop-filter: blur(18px) saturate(140%);
-		color: white;
-	}
-
-	.scan-ring {
-		width: 54px;
-		height: 54px;
-		border: 2px solid rgba(97, 216, 255, 0.18);
-		border-top-color: #61d8ff;
-		border-right-color: #67e985;
-		border-radius: 999px;
-		box-shadow: 0 0 24px rgba(97, 216, 255, 0.26);
-		animation: scan-spin 1.1s linear infinite;
-	}
-
-	.analysis-title {
-		font-size: clamp(22px, 2.7vw, 36px);
-		font-weight: 700;
-		letter-spacing: -0.04em;
-	}
-
-	.analysis-subtitle {
-		margin-top: 6px;
-		font-size: clamp(12px, 1.25vw, 16px);
-		color: rgba(255, 255, 255, 0.68);
-	}
-
-	.analysis-bars {
-		display: flex;
-		align-items: end;
-		gap: 4px;
-		height: 34px;
-	}
-
-	.analysis-bars span {
-		width: 5px;
-		border-radius: 99px;
-		background: #61d8ff;
-		animation: analyse-bar 0.8s ease-in-out infinite alternate;
-	}
-
-	.analysis-bars span:nth-child(1) {
-		height: 14px;
-	}
-
-	.analysis-bars span:nth-child(2) {
-		height: 26px;
-		animation-delay: 0.12s;
-		background: #67e985;
-	}
-
-	.analysis-bars span:nth-child(3) {
-		height: 20px;
-		animation-delay: 0.24s;
-		background: #ffb84d;
-	}
-
-	@keyframes scan-spin {
-		to {
-			transform: rotate(360deg);
-		}
-	}
-
-	@keyframes analyse-bar {
-		to {
-			transform: scaleY(0.42);
-			opacity: 0.55;
-		}
-	}
-
-	.annotation-toolbar.panelOpen {
-		right: 392px;
-	}
-
-	.annotation-actions,
-	.annotation-help {
-		border: 1px solid rgba(167, 213, 255, 0.14);
-		background: rgba(8, 13, 21, 0.78);
-		color: rgba(232, 241, 255, 0.78);
-	}
-
-	.annotation-actions :global(.btn) {
-		min-height: 2rem;
-		height: 2rem;
-		border-radius: 9px;
-		border-color: rgba(167, 213, 255, 0.12);
-		background: rgba(255, 255, 255, 0.04);
-		color: rgba(232, 241, 255, 0.78);
-	}
-
-	.annotation-actions :global(.btn-primary) {
-		border-color: rgba(97, 216, 255, 0.42);
-		background: rgba(97, 216, 255, 0.18);
-		color: #e8f8ff;
-	}
-
-	.raster-cursor-dot {
-		border: 1px solid #f7fdff;
-		border-radius: 50%;
-		background: #ff9b54;
-		box-shadow: 0 0 0 4px rgba(255, 155, 84, 0.15), 0 0 18px rgba(255, 155, 84, 0.72);
-	}
-
-	.raster-tooltip {
-		border-radius: 10px;
-		color: rgba(232, 241, 255, 0.92);
-		font-weight: 750;
-	}
-
-	.mission-loading {
 		padding: 10px 14px;
 		border-radius: 14px;
 		color: rgba(232, 241, 255, 0.86);
@@ -1546,54 +922,9 @@
 	}
 
 	@media (max-width: 1023px) {
-		.mission-topbar {
-			grid-template-columns: auto auto;
-			min-height: 64px;
-			gap: 10px;
-		}
-
-		.brand-lockup {
-			min-width: 0;
-		}
-
-		.brand-subtitle,
-		.location-chip,
-		.mission-status .status-chip:nth-child(2) {
-			display: none;
-		}
-
-		.mission-status {
-			justify-content: flex-end;
-		}
-
-		.reset-button {
-			display: none;
-		}
-
-		.annotation-toolbar,
-		.annotation-toolbar.panelOpen {
-			right: 12px;
-			bottom: calc(44vh + 28px);
-		}
-
 		.mission-loading {
 			left: 12px;
 			bottom: 12px;
-		}
-	}
-
-	@media (max-width: 640px) {
-		.mission-topbar {
-			padding: 10px 12px;
-		}
-
-		.brand-name {
-			font-size: 13px;
-		}
-
-		.status-chip.live {
-			max-width: 148px;
-			font-size: 9px;
 		}
 	}
 </style>
