@@ -31,8 +31,8 @@ const sampleLocations: ProjectLocation[] = [
     citation: weespSource,
     center: WEESP_DEMO_CENTER,
     zoom: 18.45,
-    bearing: -24,
-    pitch: 58,
+    bearing: 0,
+    pitch: 0,
     facts: [
       { label: 'Site', value: 'medieval castle' },
       { label: 'Destroyed', value: '1672' },

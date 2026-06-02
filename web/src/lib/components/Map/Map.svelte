@@ -785,20 +785,21 @@
 
 		return {
 			type: 'FeatureCollection',
+			// bottom, top, right, left in UV coords and he
 			features: [
-				ring('outer-wall-trace', [0.12, 0.08, 0.86, 0.86], [0.145, 0.11, 0.835, 0.835], 1.5),
-				ring('inner-wall-trace', [0.28, 0.27, 0.72, 0.73], [0.31, 0.305, 0.69, 0.695], 2.2),
-				ring('central-tower-trace', [0.48, 0.44, 0.585, 0.56], [0.515, 0.48, 0.555, 0.52], 8.8, '#ff2da8'),
-				box('west-annex-trace', 0.285, 0.565, 0.375, 0.65, 3.6, '#cc2cff'),
-				box('south-hall-trace', 0.35, 0.715, 0.6, 0.79, 1.8, '#bd246f'),
-				box('south-gate-hotspot', 0.255, 0.79, 0.355, 0.875, 1.2, '#b77b23'),
-				rectLine('outer-moat', 'moat', 0.1, 0.07, 0.88, 0.88),
-				rectLine('inner-moat', 'moat', 0.275, 0.265, 0.725, 0.735),
-				rectLine('outer-wall-outline', 'wall-outline', 0.12, 0.08, 0.86, 0.86),
-				rectLine('inner-wall-outline', 'wall-outline', 0.28, 0.27, 0.72, 0.73),
-				rectLine('tower-outline', 'wall-outline', 0.48, 0.44, 0.585, 0.56),
-				rectLine('west-annex-outline', 'wall-outline', 0.285, 0.565, 0.375, 0.65),
-				rectLine('hall-outline', 'wall-outline', 0.35, 0.715, 0.6, 0.79)
+				ring('outer-wall-trace', [0.315, 0.2, 0.795, 0.73], [0.345, 0.235, 0.765, 0.695], 1.5),
+				ring('inner-wall-trace', [0.405, 0.265, 0.735, 0.63], [0.435, 0.3, 0.705, 0.595], 2.2),
+				ring('central-tower-trace', [0.54, 0.41, 0.625, 0.515], [0.57, 0.445, 0.595, 0.48], 8.8, '#ff2da8'),
+				box('west-annex-trace', 0.425, 0.465, 0.485, 0.53, 3.6, '#cc2cff'),
+				box('south-hall-trace', 0.435, 0.64, 0.605, 0.705, 1.8, '#bd246f'),
+				box('south-gate-hotspot', 0.33, 0.705, 0.39, 0.775, 1.2, '#b77b23'),
+				rectLine('outer-moat', 'moat', 0.12, 0.05, 0.9, 0.86),
+				rectLine('inner-moat', 'moat', 0.295, 0.245, 0.745, 0.715),
+				rectLine('outer-wall-outline', 'wall-outline', 0.315, 0.2, 0.795, 0.73),
+				rectLine('inner-wall-outline', 'wall-outline', 0.405, 0.265, 0.735, 0.63),
+				rectLine('tower-outline', 'wall-outline', 0.54, 0.41, 0.625, 0.515),
+				rectLine('west-annex-outline', 'wall-outline', 0.425, 0.465, 0.485, 0.53),
+				rectLine('hall-outline', 'wall-outline', 0.435, 0.64, 0.605, 0.705)
 			]
 		};
 	}
