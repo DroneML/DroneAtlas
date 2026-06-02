@@ -62,8 +62,8 @@
 	let isStyleLoaded = false;
 
 	// Debug overlay state
-	let disableFloatingDrone = true;
-	let navigationDroneVisible = false;
+	let disableFloatingDrone = false;
+	let navigationDroneVisible = true;
 	let navigationDroneMode: 'idle' | 'transit' = 'idle';
 	let navigationDroneTimer: ReturnType<typeof setTimeout> | null = null;
 	let navigationFlightRun = 0;
@@ -85,7 +85,7 @@
 		'weesp-probability': 0.62
 	};
 	const weespRevealLayerIds = ['weesp-lidar', 'weesp-multispectral', 'weesp-thermal'];
-	const lockCameraAtWeespDemoEnd = true;
+	const lockCameraAtWeespDemoEnd = false;
 	let hasInitializedWeespFinalState = false;
 	const siteReconstructionBaseOpacity: Record<string, number> = {
 		'weesp-site-moat-glow': 0.42,
@@ -236,7 +236,8 @@
 			showWeespDemoFinalState();
 		} else {
 			map.jumpTo({ center: [5.5, 52.0], zoom: 7, bearing: 0, pitch: 0 });
-			setTimeout(() => runWeespDemoSequence(), 450);
+			navigationDroneVisible = !disableFloatingDrone;
+			navigationDroneMode = 'idle';
 		}
 
 		// Add hover event listeners
@@ -545,9 +546,16 @@
 	function handleResetView() {
 		if (lockCameraAtWeespDemoEnd) {
 			showWeespDemoFinalState();
-		} else {
-			runWeespDemoSequence();
+			return;
 		}
+
+		clearWeespDemoTimers();
+		selectLocation(null);
+		if (!map) return;
+
+		const duration = 1500;
+		handleLocationFlightStart(new CustomEvent('flightstart', { detail: { duration, target: 'overview' } }));
+		map.flyTo({ center: [5.5, 52.0], zoom: 7, bearing: 0, pitch: 0, duration });
 	}
 
 	function handleFloatingDroneToggle(event: CustomEvent<{ disabled: boolean }>) {
