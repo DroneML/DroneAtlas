@@ -1,0 +1,47 @@
+{
+  "title": "DroneAtlas",
+  "description": "Web-based exploration platform for multi-sensor drone data with interactive map-based tools for visualizing, exploring, and analyzing drone-acquired datasets.",
+  "upload_type": "software",
+  "license": "Apache-2.0",
+  "creators": [
+    {
+      "name": "Gonzalez, Jesse",
+      "affiliation": "Netherlands eScience Center"
+    },
+    {
+      "name": "Ku, Ou",
+      "affiliation": "Netherlands eScience Center"
+    },
+    {
+      "name": "Lo Cascio, Ermanno",
+      "affiliation": "Netherlands eScience Center"
+    }
+  ],
+  "contributors": [
+    {
+      "name": "Netherlands eScience Center",
+      "type": "ResearchGroup"
+    },
+    {
+      "name": "University of Amsterdam, 4D Research Lab",
+      "type": "ResearchGroup"
+    }
+  ],
+  "keywords": [
+    "drone",
+    "multi-sensor",
+    "geospatial",
+    "visualization",
+    "SvelteKit",
+    "MapLibre",
+    "Cloud Optimized GeoTIFF",
+    "research software"
+  ],
+  "related_identifiers": [
+    {
+      "identifier": "https://github.com/DroneML/DroneAtlas",
+      "relation": "isSupplementTo",
+      "scheme": "url"
+    }
+  ]
+}

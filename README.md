@@ -1,195 +1,142 @@
 # DroneAtlas
 
-## Project Overview
+[![Test](https://github.com/DroneML/DroneAtlas/actions/workflows/test.yml/badge.svg)](https://github.com/DroneML/DroneAtlas/actions/workflows/test.yml)
+[![Deploy to GitHub Pages](https://github.com/DroneML/DroneAtlas/actions/workflows/deploy.yml/badge.svg)](https://github.com/DroneML/DroneAtlas/actions/workflows/deploy.yml)
+[![License](https://img.shields.io/github/license/DroneML/DroneAtlas)](LICENSE)
+[![DOI](https://img.shields.io/badge/archiving-Zenodo-1682d4)](#citation-and-archiving)
+[![Built with SvelteKit](https://img.shields.io/badge/SvelteKit-5-ff3e00)](https://svelte.dev/docs/kit)
+[![Runtime: Bun](https://img.shields.io/badge/runtime-Bun-000000)](https://bun.sh/)
 
-DroneAtlas is a web-based exploration platform for multi-sensor drone data, developed by the Netherlands eScience Center in collaboration with the University of Amsterdam (4D Research Lab). It provides interactive map-based tools for visualizing, exploring, and analyzing drone-acquired datasets across diverse research domains.
+DroneAtlas is a web-based exploration platform for multi-sensor drone data, developed by the Netherlands eScience Center in collaboration with the University of Amsterdam 4D Research Lab. It provides interactive map-based tools for visualizing, exploring, and analyzing drone-acquired datasets, including Cloud Optimized GeoTIFF rasters, project locations, and a presentation-oriented drone analytics demo.
+
+## Features
+
+- Interactive MapLibre GL map with multiple map styles and client-side overlays.
+- Cloud Optimized GeoTIFF loading from Cloudflare R2 using browser-side range requests.
+- Raster layer controls for visibility, opacity, color maps, and hover/click value inspection.
+- Project/location workflow for drone case studies, including Weesp demo layers and analytics.
+- Demo presentation route with timeline playback, sensor overlays, detections, and 3D visuals.
+- Static SvelteKit deployment to GitHub Pages with no database or server runtime required.
 
 ## Tech Stack
 
-The application is built using the following technologies:
+| Area                        | Technology                                    |
+| --------------------------- | --------------------------------------------- |
+| Web framework               | SvelteKit 5, Svelte 5, TypeScript             |
+| Styling                     | Tailwind CSS, DaisyUI                         |
+| Mapping                     | MapLibre GL JS                                |
+| Raster processing           | GeoTIFF.js, Cloud Optimized GeoTIFFs          |
+| Runtime and package manager | Bun                                           |
+| Storage                     | Cloudflare R2 or any HTTP-accessible COG host |
+| Deployment                  | GitHub Pages, static adapter                  |
 
-*   **Frontend:**
-    *   SvelteKit (using Svelte 5 runes API)
-    *   TypeScript (strict mode)
-    *   Tailwind CSS + DaisyUI
-    *   MapLibre GL JS (for the interactive map)
-    *   GeoTIFF.js (client-side COG processing directly from R2)
-*   **Runtime:**
-    *   Bun.js (primary package manager and runtime)
-*   **Storage:**
-    *   Cloudflare R2 (S3-compatible object storage for COGs)
-    *   Direct browser access via HTTP range requests
-    *   No database or backend processing required
-*   **Deployment & Infrastructure:**
-    *   GitHub Pages (production deployment with static site generation)
-    *   100% client-side COG processing (no server-side dependencies)
+## Repository Layout
 
-## Key Features
+```text
+.
+├── .github/workflows/      # CI and GitHub Pages deployment
+├── CITATION.cff            # Citation metadata for GitHub and Zenodo
+├── LICENSE                 # Apache-2.0 license
+├── README.md               # Project overview
+└── web/                    # SvelteKit application
+    ├── src/                # Application source
+    ├── static/             # Static data and demo assets
+    └── tests/              # Unit, integration, fixtures, and helpers
+```
 
-*   **Interactive Map:**
-    *   Powered by MapLibre GL JS for displaying geographical data
-    *   Multiple base map styles
-*   **Direct COG Processing (Client-Side):**
-    *   Reads Cloud-Optimized GeoTIFF (COG) files directly from Cloudflare R2 storage
-    *   Uses GeoTIFF.js library for browser-based raster processing
-    *   HTTP range requests enable efficient partial file loading
-    *   Displays COG data using canvas-based rendering with customizable colormaps
-    *   Allows users to toggle visibility and adjust opacity of raster layers
-    *   Supports loading remote COG layers directly via URL input
-    *   Provides global opacity slider to adjust all visible raster layers simultaneously
-
-## Development Setup
+## Getting Started
 
 ### Prerequisites
 
-- **Bun** must be installed on your system
-  - Install from [https://bun.sh](https://bun.sh)
+- Bun, installed from <https://bun.sh/>.
+- Node.js 20 or newer for tools that expect a Node runtime.
+- A MapTiler key for production-quality basemaps.
 
-### Quick Start
+### Install and Run
 
 ```bash
-# Clone the repository
 git clone https://github.com/DroneML/DroneAtlas.git
 cd DroneAtlas/web
-
-# Install dependencies
 bun install
-
-# Start development server
-bun run dev          # Runs at localhost:5173
+bun run dev
 ```
 
-### Development Commands
+The development server runs at the Vite URL printed by the command, usually <http://localhost:5173>.
+
+### Environment Variables
+
+Create `web/.env` when local values are needed:
 
 ```bash
-# Type checking
-bun run check        # Svelte-kit sync + type check
-
-# Linting and formatting
-bun run lint         # ESLint + Prettier check
-bun run format       # Auto-format code
-
-# Building for production
-bun run build        # Generate static site
-```
-
-## Architecture Overview
-
-### Directory Structure
-```
-web/
-├── src/
-│   ├── lib/
-│   │   ├── components/
-│   │   │   ├── Map/              # Map system (modular components)
-│   │   │   │   ├── components/   # Sub-components
-│   │   │   │   ├── store/        # Map-specific state
-│   │   │   │   └── utils/        # Map utilities
-│   │   │   └── ui/               # Reusable UI components
-│   │   ├── stores/               # Global state management
-│   │   └── utils/                # General utilities
-│   └── routes/                   # SvelteKit pages and layouts
-└── static/                       # Static assets
-```
-
-### Map Component Architecture
-
-The Map system is modular:
-- `Map.svelte` - Main container orchestrating all map functionality
-- `MapCore.svelte` - MapLibre instance management
-- `MapControls.svelte` - Zoom, rotation, and 3D controls
-- `MapSidebar.svelte` - Data explorer sidebar with settings
-- `RasterLayerManager.svelte` - COG layer management
-- `RasterLegend.svelte` - Raster data legend
-
-## Processing Raster Maps
-
-The repository includes a script for processing raster maps into Cloud Optimized GeoTIFFs (COGs) suitable for web visualization.
-
-### Prerequisites
-
-- GDAL must be installed on your system
-  ```bash
-  # Install GDAL on macOS using Homebrew
-  brew install gdal
-
-  # Install GDAL on Ubuntu/Debian
-  sudo apt-get install gdal-bin python3-gdal
-  ```
-
-### Using the Script
-
-1. Place your raster files (.tif) in the `data/02_Rasters` directory.
-
-2. Run the conversion script:
-   ```bash
-   bash process_rasters.sh
-   ```
-
-3. The script will:
-   - Reproject all rasters to EPSG:4326 (WGS 84) using bilinear resampling
-   - Convert them to Cloud Optimized GeoTIFFs with Google Maps Compatible tiling
-   - Apply DEFLATE compression to reduce file size
-   - Preserve the original directory structure in the output
-
-4. Processed files will be available in the `data/cogs` directory.
-
-## Code Style Guidelines
-
-### TypeScript
-- **Strict mode** enabled - no implicit any
-- Explicit type annotations for props and function parameters
-- Interface definitions for all component props
-
-### Formatting
-- **Tabs** for indentation
-- **Single quotes** for strings
-- **No trailing commas**
-- **100 character** line width
-- Run `bun run format` before committing
-
-### CSS/Styling
-- **Tailwind-first** approach - use utilities over custom CSS
-- **DaisyUI components** for complex UI patterns
-- **Responsive design** with Tailwind breakpoints (`sm:`, `md:`, `lg:`, `xl:`)
-
-## Environment Configuration
-
-### Required Environment Variables
-```bash
-# MapTiler API key for map styles
 VITE_MAPTILER_KEY=your_maptiler_key
-
-# Cloudflare R2 bucket URL for COG storage
-VITE_R2_BUCKET_URL=https://pub-6e8836a7d8be4fd1adc1317bb416ad75.r2.dev
-
-# Optional base path for deployment
-BASE_PATH=/optional-path
+VITE_R2_BUCKET_URL=https://example-r2-bucket.r2.dev
+VITE_R2_POINTS_BASE_URL=https://example-r2-bucket.r2.dev
+BASE_PATH=/optional-deployment-base-path
 ```
+
+## Development Commands
+
+Run commands from `web/`.
+
+| Command                 | Purpose                                         |
+| ----------------------- | ----------------------------------------------- |
+| `bun run dev`           | Start the development server                    |
+| `bun run check`         | Run SvelteKit sync and TypeScript/Svelte checks |
+| `bun run lint`          | Run Prettier check and ESLint                   |
+| `bun run format`        | Format source files                             |
+| `bun test`              | Run all tests                                   |
+| `bun run test:coverage` | Run tests with Bun coverage output              |
+| `bun run build`         | Build the static site                           |
+| `bun run preview`       | Preview the production build locally            |
 
 ## Testing
 
-The application includes a test suite using Bun's built-in test runner.
+DroneAtlas has a Bun-native test suite covering geospatial utilities, raster processing, stores, data processing flows, routes, generated manifests, and demo timeline logic.
+
+Current local status after this update:
+
+| Metric     | Value       |
+| ---------- | ----------- |
+| Tests      | 300 passing |
+| Test files | 25          |
+| Assertions | 741         |
+| Runner     | Bun test    |
+
+Run the suite with:
 
 ```bash
-# Run all tests
+cd web
 bun test
-
-# Run tests in watch mode
-bun test --watch
-
-# Run tests with coverage report
-bun test --coverage
 ```
 
-For detailed testing documentation, see [tests/README.md](web/tests/README.md).
+More details are in [`web/tests/README.md`](web/tests/README.md).
 
-## Team
+## Data and Deployment
 
-- **Jesse Gonzalez** — Netherlands eScience Center
-- **Ou Ku** — Netherlands eScience Center
-- **Ermanno Lo Cascio** — Netherlands eScience Center
+The application is designed for static hosting. Raster and point datasets are loaded from HTTP endpoints, typically Cloudflare R2. Cloud Optimized GeoTIFFs are processed in the browser, so deployment does not require a database or backend service.
+
+GitHub Pages deployment is handled by [`deploy.yml`](.github/workflows/deploy.yml). The separate [`test.yml`](.github/workflows/test.yml) workflow runs type checks and the test suite on pushes and pull requests.
+
+## Citation and Archiving
+
+If you use DroneAtlas in research, cite it using [`CITATION.cff`](CITATION.cff). GitHub can render this file through the repository's "Cite this repository" button.
+
+The repository includes [`.zenodo.json`](.zenodo.json) so releases can be archived on Zenodo with consistent metadata. To publish a citable release:
+
+1. Enable the DroneAtlas repository in Zenodo or the institutional Zenodo community.
+2. Create a GitHub release with a semantic version tag such as `v0.1.0`.
+3. Let Zenodo archive the release and mint a DOI.
+4. Replace the Zenodo badge above with the minted DOI badge.
+5. Update `CITATION.cff` with the released version, release date, and DOI.
 
 ## License
 
-MIT
+DroneAtlas is licensed under the [Apache License 2.0](LICENSE).
+
+## Team
+
+- Jesse Gonzalez, Netherlands eScience Center
+- Ou Ku, Netherlands eScience Center
+- Ermanno Lo Cascio, Netherlands eScience Center
+- Netherlands eScience Center
+- University of Amsterdam, 4D Research Lab
