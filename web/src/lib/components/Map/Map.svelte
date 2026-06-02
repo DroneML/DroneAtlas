@@ -793,7 +793,7 @@
 				box('west-annex-trace', 0.425, 0.465, 0.485, 0.53, 3.6, '#cc2cff'),
 				box('south-hall-trace', 0.405, 0.575, 0.63, 0.68, 1.8, '#bd246f'),
 				box('south-gate-hotspot', 0.33, 0.705, 0.39, 0.775, 1.2, '#b77b23'),
-				rectLine('outer-moat', 'moat', 0.285, 0.17, 0.825, 0.76),
+				rectLine('outer-moat', 'moat', 0.25, 0.125, 0.86, 0.805),
 				rectLine('inner-moat', 'moat', 0.395, 0.255, 0.745, 0.64),
 				rectLine('outer-wall-outline', 'wall-outline', 0.315, 0.2, 0.795, 0.73),
 				rectLine('inner-wall-outline', 'wall-outline', 0.405, 0.265, 0.735, 0.63),
